@@ -1,0 +1,1158 @@
+Parallel Search
+Sage Accounting South Africa training documentation invoicing bank statements recurring invoices
+Sage Business Cloud Accounting help South Africa quotes invoices bank feeds
+Sage Accounting training South Africa YouTube courses documentation
+Sage One Accounting South Africa training manual PDF
+Sage Accounting South Africa partner training bookkeeping courses
+View
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting/
+View
+Read
+https://accounting.sageone.co.za/Landing/Default.aspx
+View
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+View
+Read
+https://www.sage.com/africa/sage-business-cloud/accounting/features/connect-my-bank/
+View
+Read
+https://accounting.sageone.co.za/resources/pdf/sage one accounting getting started.pdf
+View
+Parallel Search
+Sage Accounting reviews South Africa features pricing alternatives
+Sage Accounting South Africa tutorials quotes invoices recurring bank reconciliation
+site:sageone.co.za/resources/pdf sage one accounting pdf
+Sage Accounting Help Centre bank statement import matching invoices
+Sage Accounting help quotes invoices recurring statements
+View
+Read
+https://accounting.sageone.co.za/resources/pdf/Sage One Accounting Banking Guide.pdf
+View
+Parallel Search
+best accounting software South Africa small business invoicing bank feeds
+top accounting software South Africa Sage Xero QuickBooks Zoho FreshBooks
+accounting software South Africa alternatives to Sage Accounting
+best invoicing accounting software small business South Africa bank statement import
+South Africa cloud accounting software comparison
+View
+Read
+https://www.capterra.co.za/directory/1/accounting/software
+View
+Read
+https://www.softwaresuggest.com/accounting-software/south-africa
+View
+Read
+https://quickbooks.intuit.com/za/accounting-software/
+View
+Read
+https://www.zoho.com/za/books/
+View
+Read
+https://invoicecrowd.com/10-best-invoicing-software-in-south-africa-billing-and-invoicing-tools-for-small-business/
+View
+Straight answer: I’ve started the audit, but I cannot create Google Drive folders or GitHub repos from here unless you give me Drive/GitHub access or a shared upload link. I will not pretend the full audit is done yet — this is the first verified pass and the project structure we should use.
+
+Create Google Drive folder: Logi-Ink Accounting System
+
+Inside it create:
+
+01 Sage Audit
+02 Competitor Audit
+03 Product Requirements
+04 UI UX Design
+05 Technical Specs
+06 Database Schema
+07 GitHub Exports
+08 Source Documents
+09 Screenshots
+10 Decisions Log
+Create GitHub repo: logi-ink-accounting
+
+Add folders:
+
+docs/
+research/
+wireframes/
+frontend/
+backend/
+database/
+imports/
+exports/
+First verified Sage findings:
+
+Sage Accounting is cloud-based, works through browser/mobile/tablet, auto-syncs across devices, and stores/backups data in the cloud. Source
+Sage invoicing supports quotes-to-invoices, recurring invoices, draft invoices, batch sending, PDF/online invoices, branding templates, payment status tracking, and allocating one customer payment across multiple invoices. Source
+Sage banking supports manual bank capture, OFX/CSV imports, automatic bank feeds, mapping rules, split transactions, invoice allocation, attachments, duplicate detection, reviewed/unreviewed transaction states, search, sorting, and batch edits. Source
+Sage bank feeds automatically pull transactions, match them to invoices, learn from category choices, and support split bank transactions. Source
+Sage login/landing page confirms this is the Sage One Accounting platform entry point. Source
+MVP functionality for Logi-Ink should be:
+
+Customer management
+Item/service list
+Quotes
+Convert quote to invoice
+Invoice PDF generation
+Email invoice
+Recurring invoices
+Customer statements
+Bank statement import: CSV first, OFX later
+Transaction matching to invoices
+Manual match/unmatch
+Bank rules
+VAT fields
+Basic reports: sales, unpaid invoices, customer balance, bank import history
+First competitor audit shortlist:
+
+Sage Accounting
+QuickBooks Online
+Xero
+Zoho Books
+FreshBooks
+Wave
+Odoo
+Invoice Crowd
+Invoice Ninja
+Invoicely
+PayPal Invoicing
+Zoho Invoice
+Sage 50cloud
+NetSuite
+QuickBooks Enterprise
+SAP
+Oracle Fusion Cloud ERP
+MYOB
+SYSPRO ERP
+Cin7 Core
+Capterra’s South Africa accounting directory shows products including Zoho Books, QuickBooks Online, FreshBooks, Xero, Wave, Odoo, Sage Intacct, and Sage Accounting. Source SoftwareSuggest’s South Africa list includes Wave, Sage 50cloud, SAP, Divvy, Oracle Fusion Cloud ERP, Sage Accounting, MYOB, and SYSPRO ERP. Source Invoice Crowd’s South Africa comparison lists QuickBooks, Xero, Zoho Invoice, FreshBooks, Sage Business Cloud Accounting, Invoice Ninja, Invoicely, PayPal Invoicing, and Wave. Source
+
+First design direction:
+
+Product name: Logi-Ink Accounting
+Positioning: simple internal accounting for quotes, invoices, recurring invoices, statements, and bank matching.
+UI style: clean, fast, boring-on-purpose finance dashboard.
+Main nav:
+Dashboard
+Customers
+Quotes
+Invoices
+Recurring
+Statements
+Bank Import
+Reports
+Settings
+Critical rule:
+
+We audit Sage workflows and competitor UX patterns.
+We do not copy Sage branding, UI, code, templates, wording, or protected material.
+Next step:
+
+Give me either:
+a Google Drive upload/share link, or
+confirm you want everything output here as Markdown files that you manually paste into Drive/GitHub.
+Once you confirm that, I’ll produce the first actual repo documents: README.md, PRODUCT_REQUIREMENTS.md, SAGE_AUDIT.md, COMPETITOR_AUDIT_MATRIX.md, and DATABASE_SCHEMA.md.
+
+Just give MD file document
+Save this as docs/LOGI_INK_ACCOUNTING_AUDIT.md.
+
+Copy# Logi-Ink Accounting System Audit
+
+## Project
+
+Build an in-house accounting system for Logia / Logi-Ink with only the functionality actually needed:
+
+- Quoting
+- Invoicing
+- Recurring invoices
+- Customer statements
+- Bank statement imports
+- Bank transaction matching
+- Basic reports
+
+This system is not intended to replace a full enterprise accounting platform. It is intended to remove the cost and complexity of Sage where the business only needs a focused internal tool.
+
+---
+
+## Current Audit Status
+
+Status: **Initial verified audit started**
+
+The full audit is not complete yet. This document contains the verified findings from the first pass over Sage Accounting, Sage One, official Sage pages, Sage banking documentation, and competitor discovery sources.
+
+---
+
+## Source Systems Reviewed
+
+### Sage Accounting South Africa
+
+Sage Accounting is a cloud-based accounting system that works through a browser and across PC, Mac, smartphone, and tablet devices. Sage states that the product syncs work across devices, automatically backs up data in the cloud, and does not require local installation.  
+Source: https://www.sage.com/en-za/sage-business-cloud/accounting/
+
+### Sage One Accounting Login
+
+Sage One Accounting login confirms the platform entry point and password reset/support workflow for the accounting.sageone.co.za product.  
+Source: https://accounting.sageone.co.za/Landing/Default.aspx
+
+### Sage Invoicing
+
+Sage invoicing supports quotes, invoices, recurring invoices, draft invoices, batch invoice sending, invoice branding, PDF invoices, online invoice links, customer payment status, and converting quotes to invoices.  
+Source: https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+
+### Sage Bank Feeds
+
+Sage bank feeds pull bank transactions into Sage Accounting, match transactions to invoices, support split transactions, and learn from user category selections.  
+Source: https://www.sage.com/africa/sage-business-cloud/accounting/features/connect-my-bank/
+
+### Sage Banking Guide
+
+Sage One banking supports manual transaction capture, OFX imports, CSV imports, automatic bank feeds, mapping rules, split transactions, customer receipt allocation, supplier payment allocation, attachments, reviewed/unreviewed banking states, and batch edits.  
+Source: https://accounting.sageone.co.za/resources/pdf/Sage%20One%20Accounting%20Banking%20Guide.pdf
+
+---
+
+## Sage Feature Audit
+
+### 1. Quoting
+
+Observed functionality:
+
+- Create customer quotes
+- Store customer details
+- Add products or services
+- Add prices, quantities, discounts, terms, and notes
+- Convert quote to invoice
+- Send quote to customer
+- Use branding and templates
+
+Useful for Logi-Ink:
+
+- Quote creation
+- Quote number sequence
+- Customer details
+- Line items
+- VAT
+- Discount
+- Notes
+- Terms
+- Quote PDF
+- Convert quote to invoice
+
+Not needed initially:
+
+- Multi-currency
+- Advanced approval workflows
+- Inventory-linked quotes
+- Sales team pipelines
+- CRM automation
+
+Recommended Logi-Ink MVP:
+
+- `Draft`
+- `Sent`
+- `Accepted`
+- `Rejected`
+- `Expired`
+- `Converted`
+
+---
+
+### 2. Invoicing
+
+Observed functionality:
+
+- Create sales invoices
+- Create purchase invoices
+- Create pro-forma invoices
+- Create draft invoices
+- Create recurring invoices
+- Batch-send invoices
+- Convert quotes to invoices
+- Add logo and branding
+- Add document headings
+- Add footer details
+- Add line items
+- Add discounts
+- Add payment notes
+- Track invoice status
+- Allocate payments to invoices
+- Apply one payment to multiple invoices
+
+Source: https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+
+Useful for Logi-Ink:
+
+- Create invoice from quote
+- Create invoice manually
+- PDF invoice generation
+- Email invoice
+- Mark as paid
+- Mark as partially paid
+- Show outstanding balance
+- Allocate imported bank transaction to invoice
+- Send invoice reminder
+
+Not needed initially:
+
+- Online payment button
+- Payment gateway integration
+- Multi-currency
+- Purchase invoices
+- Supplier side accounting
+- Inventory valuation
+- Advanced accounting journals
+
+Recommended Logi-Ink invoice statuses:
+
+- `Draft`
+- `Sent`
+- `Viewed`
+- `Part Paid`
+- `Paid`
+- `Overdue`
+- `Cancelled`
+- `Written Off`
+
+---
+
+### 3. Recurring Invoices
+
+Observed functionality:
+
+Sage supports recurring invoices as PDF or online invoices and uses recurring billing to save admin time.  
+Source: https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+
+Useful for Logi-Ink:
+
+- Monthly recurring invoices
+- Custom start date
+- Custom end date
+- Repeat interval
+- Auto-generate draft invoice
+- Optional auto-email
+- Customer-specific recurring line items
+
+Not needed initially:
+
+- Complex billing plans
+- Usage-based billing
+- Payment collection automation
+- Subscription portal
+
+Recommended MVP:
+
+Recurring invoice template fields:
+
+- Customer
+- Start date
+- End date
+- Frequency
+- Next run date
+- Line items
+- VAT
+- Notes
+- Auto-send: yes/no
+- Active: yes/no
+
+---
+
+### 4. Customer Statements
+
+Required functionality for Logi-Ink:
+
+- Generate statement by customer
+- Date range selection
+- Show opening balance
+- Show invoices
+- Show payments
+- Show credit notes if added later
+- Show closing balance
+- Export PDF
+- Email statement
+
+Recommended MVP statement statuses:
+
+- `Generated`
+- `Sent`
+- `Downloaded`
+
+---
+
+### 5. Bank Imports
+
+Observed functionality:
+
+Sage One supports manual transaction capture, OFX imports, CSV imports, and automatic bank feeds.  
+Source: https://accounting.sageone.co.za/resources/pdf/Sage%20One%20Accounting%20Banking%20Guide.pdf
+
+Recommended Logi-Ink MVP:
+
+- CSV upload first
+- OFX import later
+- Bank feed integration later only if required
+
+CSV import should support:
+
+- Date
+- Description
+- Reference
+- Amount
+- Debit
+- Credit
+- Balance
+- Bank account
+- Import batch ID
+
+Import workflow:
+
+1. Upload bank CSV
+2. Preview detected columns
+3. Map CSV columns
+4. Validate rows
+5. Detect duplicates
+6. Import transactions
+7. Show unmatched transactions
+8. Match transactions to invoices
+9. Mark transaction as reviewed
+
+---
+
+### 6. Bank Transaction Matching
+
+Observed functionality:
+
+Sage automatically matches bank transactions to invoices and uses mapping rules to assign transactions to accounts. Sage One’s banking guide says mapping rules can use keywords in the bank statement description to assign transactions automatically.  
+Source: https://accounting.sageone.co.za/resources/pdf/Sage%20One%20Accounting%20Banking%20Guide.pdf
+
+Recommended Logi-Ink matching logic:
+
+Automatic match rules:
+
+- Exact invoice number in bank reference
+- Exact invoice amount
+- Same customer name in bank description
+- Payment date after invoice date
+- Payment amount equals outstanding invoice balance
+
+Manual match tools:
+
+- Search invoice
+- Match transaction to one invoice
+- Split transaction across multiple invoices
+- Unmatch transaction
+- Mark as unknown
+- Mark as non-customer income
+- Mark as bank charge
+- Mark as owner transfer
+
+Matching confidence:
+
+- `High`
+- `Medium`
+- `Low`
+- `Manual`
+
+---
+
+## Competitor Discovery List
+
+The competitor audit should cover these systems:
+
+1. Sage Accounting
+2. QuickBooks Online
+3. Xero
+4. Zoho Books
+5. FreshBooks
+6. Wave
+7. Odoo
+8. Invoice Crowd
+9. Invoice Ninja
+10. Invoicely
+11. PayPal Invoicing
+12. Zoho Invoice
+13. Sage 50cloud
+14. NetSuite
+15. QuickBooks Enterprise
+16. SAP
+17. Oracle Fusion Cloud ERP
+18. MYOB
+19. SYSPRO ERP
+20. Cin7 Core
+
+Capterra’s South Africa accounting directory lists accounting products including Zoho Books, QuickBooks Online, FreshBooks, Xero, Wave, Odoo, Sage Intacct, and Sage Accounting.  
+Source: https://www.capterra.co.za/directory/1/accounting/software
+
+SoftwareSuggest’s South Africa accounting software list includes Wave, Sage 50cloud, SAP, Divvy, Oracle Fusion Cloud ERP, Sage Accounting, MYOB, and SYSPRO ERP.  
+Source: https://www.softwaresuggest.com/accounting-software/south-africa
+
+Invoice Crowd’s South Africa invoicing comparison lists QuickBooks Online, Xero, Zoho Invoice, FreshBooks, Sage Business Cloud Accounting, Invoice Ninja, Invoicely, PayPal Invoicing, and Wave.  
+Source: https://invoicecrowd.com/10-best-invoicing-software-in-south-africa-billing-and-invoicing-tools-for-small-business/
+
+---
+
+## Initial Competitor Notes
+
+### QuickBooks Online
+
+QuickBooks South Africa supports income and expense tracking, invoicing, time tracking, sales tax management, budgeting, bank reconciliation, inventory tracking, quote-to-invoice conversion, recurring invoices, invoice reminders, app integrations, cloud access, and accountant collaboration.  
+Source: https://quickbooks.intuit.com/za/accounting-software/
+
+Relevant features to copy conceptually:
+
+- Simple quote-to-invoice flow
+- Recurring invoices
+- Invoice reminders
+- Bank reconciliation
+- Clean dashboard
+- Accountant access
+
+Avoid for MVP:
+
+- Inventory
+- Time tracking
+- App marketplace
+- Payroll
+- Deep tax automation
+
+---
+
+### Zoho Books
+
+Zoho Books South Africa supports VAT-compliant invoicing, quotes, expenses, vendor bills, inventory, time tracking, reports, automation, collaboration, customer/vendor portals, and mobile/desktop apps. Pricing starts from a free plan and paid plans listed from R82.50 per organisation per month billed annually.  
+Source: https://www.zoho.com/za/books/
+
+Relevant features to copy conceptually:
+
+- Good pricing model
+- Simple quotes and invoices
+- VAT awareness
+- Automation
+- Clean mobile-friendly experience
+- Customer portal idea for later
+
+Avoid for MVP:
+
+- Vendor portal
+- Inventory
+- Time tracking
+- Advanced automation
+- AI features
+
+---
+
+### Invoice Crowd
+
+Invoice Crowd positions itself around proposals, estimates, invoices, payments, and accounting records in one browser-based workspace. It recommends comparing products based on sales-to-billing continuity, client experience, repeat work, accounting evidence, and country responsibility.  
+Source: https://invoicecrowd.com/10-best-invoicing-software-in-south-africa-billing-and-invoicing-tools-for-small-business/
+
+Relevant features to copy conceptually:
+
+- Proposal/estimate to invoice workflow
+- Browser-based workspace
+- Simple client-facing document flow
+- Practical South African invoicing focus
+
+Avoid for MVP:
+
+- Proposal-heavy sales tools
+- Payment integrations unless required
+
+---
+
+## Product Scope
+
+### MVP Must Have
+
+- Login
+- User roles
+- Company settings
+- Customer list
+- Product/service list
+- Quote creation
+- Quote PDF
+- Quote email
+- Convert quote to invoice
+- Manual invoice creation
+- Invoice PDF
+- Invoice email
+- Recurring invoice templates
+- Monthly recurring invoice generation
+- Customer statements
+- CSV bank import
+- Bank transaction review screen
+- Match payment to invoice
+- Split payment across invoices
+- Basic reports
+- Audit log
+
+### MVP Should Have
+
+- VAT support
+- Invoice numbering settings
+- Quote numbering settings
+- Email templates
+- PDF template branding
+- Customer balance
+- Overdue invoice list
+- Duplicate bank transaction detection
+- Export to CSV
+
+### MVP Can Wait
+
+- Bank feed integration
+- OFX import
+- Online payments
+- Customer portal
+- Inventory
+- Supplier bills
+- Payroll
+- Multi-currency
+- Accountant portal
+- Mobile app
+- Advanced reports
+- AI matching
+- SARS submission integration
+
+---
+
+## Recommended Navigation
+
+Main sidebar:
+
+- Dashboard
+- Customers
+- Quotes
+- Invoices
+- Recurring
+- Statements
+- Bank Import
+- Reports
+- Settings
+
+---
+
+## UI / UX Direction
+
+Product name:
+
+**Logi-Ink Accounting**
+
+Design style:
+
+- Clean
+- Fast
+- Minimal
+- Internal-business focused
+- No clutter
+- No unnecessary accounting jargon
+
+Primary screens:
+
+### Dashboard
+
+Show:
+
+- Total unpaid invoices
+- Overdue invoices
+- Cash received this month
+- Quotes awaiting acceptance
+- Recent bank imports
+- Unmatched bank transactions
+
+### Customers
+
+Show:
+
+- Customer name
+- Email
+- Phone
+- VAT number
+- Balance
+- Last invoice date
+- Status
+
+### Quotes
+
+Show:
+
+- Quote number
+- Customer
+- Date
+- Expiry date
+- Amount
+- Status
+- Convert to invoice button
+
+### Invoices
+
+Show:
+
+- Invoice number
+- Customer
+- Invoice date
+- Due date
+- Amount
+- Paid
+- Balance
+- Status
+
+### Recurring
+
+Show:
+
+- Customer
+- Frequency
+- Next invoice date
+- Amount
+- Auto-send status
+- Active status
+
+### Bank Import
+
+Show:
+
+- Import batch
+- Bank account
+- Date imported
+- Number of transactions
+- Matched
+- Unmatched
+- Reviewed
+
+### Bank Matching
+
+Show left side:
+
+- Bank transaction date
+- Description
+- Amount
+- Reference
+
+Show right side:
+
+- Suggested invoice matches
+- Customer
+- Invoice number
+- Outstanding amount
+- Match confidence
+
+Buttons:
+
+- Match
+- Split
+- Ignore
+- Create Rule
+- Mark Reviewed
+
+---
+
+## Data Model Draft
+
+### users
+
+- id
+- name
+- email
+- password_hash
+- role
+- active
+- created_at
+- updated_at
+
+### companies
+
+- id
+- name
+- trading_name
+- registration_number
+- vat_number
+- address
+- phone
+- email
+- logo_url
+- created_at
+- updated_at
+
+### customers
+
+- id
+- company_id
+- name
+- contact_person
+- email
+- phone
+- vat_number
+- billing_address
+- notes
+- active
+- created_at
+- updated_at
+
+### items
+
+- id
+- company_id
+- name
+- description
+- unit_price
+- vat_rate
+- active
+- created_at
+- updated_at
+
+### quotes
+
+- id
+- company_id
+- customer_id
+- quote_number
+- issue_date
+- expiry_date
+- status
+- subtotal
+- vat_total
+- discount_total
+- total
+- notes
+- terms
+- created_at
+- updated_at
+
+### quote_lines
+
+- id
+- quote_id
+- item_id
+- description
+- quantity
+- unit_price
+- discount
+- vat_rate
+- line_total
+
+### invoices
+
+- id
+- company_id
+- customer_id
+- quote_id
+- invoice_number
+- issue_date
+- due_date
+- status
+- subtotal
+- vat_total
+- discount_total
+- total
+- paid_total
+- balance
+- notes
+- terms
+- created_at
+- updated_at
+
+### invoice_lines
+
+- id
+- invoice_id
+- item_id
+- description
+- quantity
+- unit_price
+- discount
+- vat_rate
+- line_total
+
+### recurring_invoices
+
+- id
+- company_id
+- customer_id
+- frequency
+- start_date
+- end_date
+- next_run_date
+- auto_send
+- active
+- subtotal
+- vat_total
+- total
+- notes
+- terms
+- created_at
+- updated_at
+
+### recurring_invoice_lines
+
+- id
+- recurring_invoice_id
+- item_id
+- description
+- quantity
+- unit_price
+- discount
+- vat_rate
+- line_total
+
+### bank_accounts
+
+- id
+- company_id
+- bank_name
+- account_name
+- account_number
+- branch_code
+- active
+- created_at
+- updated_at
+
+### bank_imports
+
+- id
+- company_id
+- bank_account_id
+- file_name
+- file_hash
+- imported_by
+- imported_at
+- total_rows
+- duplicate_rows
+- status
+
+### bank_transactions
+
+- id
+- bank_import_id
+- bank_account_id
+- transaction_date
+- description
+- reference
+- amount
+- debit
+- credit
+- balance
+- hash
+- matched_status
+- reviewed
+- created_at
+- updated_at
+
+### payment_matches
+
+- id
+- bank_transaction_id
+- invoice_id
+- amount_matched
+- match_type
+- confidence
+- matched_by
+- matched_at
+
+### bank_rules
+
+- id
+- company_id
+- rule_name
+- keyword
+- match_type
+- action
+- active
+- created_at
+- updated_at
+
+### statements
+
+- id
+- company_id
+- customer_id
+- start_date
+- end_date
+- opening_balance
+- closing_balance
+- pdf_url
+- generated_at
+- sent_at
+
+### audit_logs
+
+- id
+- company_id
+- user_id
+- entity_type
+- entity_id
+- action
+- old_value
+- new_value
+- created_at
+
+---
+
+## Recommended Tech Stack
+
+Frontend:
+
+- React
+- Next.js
+- Tailwind CSS
+- shadcn/ui
+
+Backend:
+
+- Node.js
+- NestJS or Express
+
+Database:
+
+- PostgreSQL
+
+PDF generation:
+
+- React PDF or Puppeteer
+
+Authentication:
+
+- Email/password login
+- Role-based access control
+
+File storage:
+
+- Google Drive initially
+- Later S3-compatible storage if needed
+
+Deployment:
+
+- Docker
+- VPS or cloud host
+- GitHub Actions for deployment
+
+---
+
+## User Roles
+
+### Admin
+
+Can do everything.
+
+### Finance User
+
+Can manage customers, quotes, invoices, recurring invoices, statements, bank imports, and reports.
+
+### Read Only
+
+Can view reports, invoices, customers, and statements.
+
+---
+
+## Security Requirements
+
+- Password hashing
+- HTTPS only
+- User roles
+- Audit logs
+- Soft deletes for accounting records
+- No hard delete for invoices/payments after finalisation
+- File upload validation
+- CSV import validation
+- Duplicate transaction detection
+- Daily database backup
+- Export all data function
+
+---
+
+## MVP Build Phases
+
+### Phase 1
+
+- Auth
+- Company settings
+- Customers
+- Items/services
+- Quotes
+- Quote PDF
+
+### Phase 2
+
+- Invoices
+- Convert quote to invoice
+- Invoice PDF
+- Invoice email
+- Invoice statuses
+
+### Phase 3
+
+- Recurring invoices
+- Customer statements
+- Statement PDF
+
+### Phase 4
+
+- CSV bank import
+- Transaction review
+- Manual invoice matching
+- Duplicate detection
+
+### Phase 5
+
+- Bank rules
+- Auto-match suggestions
+- Reports
+- Audit logs
+
+---
+
+## Reports Required
+
+MVP reports:
+
+- Sales by month
+- Unpaid invoices
+- Overdue invoices
+- Customer balances
+- Payments received
+- Bank import history
+- Unmatched bank transactions
+- VAT summary
+
+---
+
+## Key Product Decisions
+
+1. Build for internal Logi-Ink use first.
+2. Do not build full accounting software.
+3. Focus on quoting, invoicing, recurring invoicing, statements, and bank matching.
+4. Start with CSV bank import.
+5. Add OFX later only if needed.
+6. Add live bank feeds only if CSV import becomes too painful.
+7. Keep UI simple.
+8. Keep audit logs from day one.
+9. Do not copy Sage UI, branding, templates, code, or protected content.
+10. Use Sage and competitors only as workflow references.
+
+---
+
+## Open Questions
+
+- Which bank statement formats does Logia currently download?
+- Does the business use VAT on every invoice?
+- Are partial payments common?
+- Are deposits required?
+- Are credit notes required in MVP?
+- Should invoice emails send from the app or be downloaded and sent manually?
+- Does Logia need multiple companies/entities?
+- Who needs user access?
+- Should customers have a portal later?
+- Should invoice numbering match existing Sage numbering?
+
+---
+
+## Immediate Next Documents Needed
+
+Create these next:
+
+- `PRODUCT_REQUIREMENTS.md`
+- `DATABASE_SCHEMA.md`
+- `UI_WIREFRAMES.md`
+- `API_SPEC.md`
+- `BANK_IMPORT_SPEC.md`
+- `COMPETITOR_AUDIT_MATRIX.md`
+- `BUILD_PLAN.md`

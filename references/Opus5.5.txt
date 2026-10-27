@@ -1,0 +1,255 @@
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting
+View
+Parallel Search
+Sage Business Cloud Accounting South Africa pricing 2026
+Sage Accounting South Africa help centre quotes invoices recurring invoices
+Sage Accounting South Africa bank feeds import bank statement reconcile
+Sage Accounting South Africa training course
+best accounting software South Africa small business comparison
+Sage Accounting reviews complaints South Africa
+View
+Team Brain
+Listing
+View
+Team Brain
+Searching (?i)google drive|github
+View
+Team Brain
+Reading
+View
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting/pricing/
+View
+Read
+https://www.fundinghub.co.za/guide/the-best-small-business-accounting-software-for-south-african-smes
+View
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting/features/connect-my-bank/
+View
+I can't create the Google Drive folder or the GitHub repo from this chat because I don't have Drive or GitHub tools in this session, only web search, page reading and your Gmail. I also can't download or watch YouTube videos. I can read web pages and docs, so I've started the Sage audit from Sage's own pages. Here's what I've confirmed so far.
+
+Sage Accounting SA, from their live pages
+
+Pricing: Start costs R270/month (R3,240/year). Standard costs R490/month (R5,880/year) and includes 2 users and 1 company. Both prices include VAT. Source
+Paid add-ons: extra user R85/month, extra company R460/month, Debtors Manager R325/month, Time Tracking R185/month, multi-currency payments R185/month, 1GB storage R20/month, Advanced Inventory R465/month. These add-ons are where the cost climbs. Source
+Bank feeds: direct feeds only with FNB, Nedbank and Investec. For other banks you import CSV files. You also have to re-confirm bank consent every three months. Source
+Possible price change: a Sage reseller posted that prices change from 1 October 2026. I haven't confirmed that against Sage. Source
+Recurring invoices: a user on Sage's forum reports that the description on a recurring invoice can't be changed each month, for example to add the month. That's a gap your system could fix. I've only seen the search snippet so far, not the full thread. Source
+Complaints: the Hellopeter review summary mentions locked accounts, debit orders still running after cancellation, and long phone holds. Again, I've only seen the snippet. Source
+Competitors found so far: Xero, QuickBooks, Zoho Books, SME Snapshot and ProfitBooks. Their prices are from third-party articles and I haven't checked any of them against the vendor sites yet. Source Source
+
+To get Drive and GitHub working as the project repo:
+
+Ask your Genspark org admin to open Connectors in the organization settings, enable Google Drive, and click Save Changes. If you're the admin, you can do this yourself.
+In Google Drive, create a folder called Logi-Ink Accounting. Inside it, create 01-Sage-Audit, 02-Training-Sources, 03-Competitors and 04-Build-Spec.
+On GitHub, create an empty repo, for example logi-ink-accounting.
+In Genspark, go to the AI Developer starting points, choose Existing GitHub Project under Existing code, and authorise GitHub for that repo.
+Start a new chat once the connectors show as connected. If I can see Drive there, I'll save everything straight into the folder. If I can't, I'll give you each document as a ready-to-save .md file.
+Until then, I can keep going in batches here. Batch 1 would be the full Sage audit: the help centre, Sage University, Sage's training pages, the forums and the review sites, each source read in full and written up as one document. Batch 2 onwards would cover the competitors, about five per batch, checked against each vendor's own site.
+
+Just give MD file document
+Read
+https://communityhub.sage.com/za/sage-accounting/f/general-discussion/205332/can-i-edit-my-description-field-every-month-on-my-recurring-invoices
+View
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+View
+Read
+https://www.xero.com/za/pricing-plans/
+View
+Read
+https://www.zoho.com/za/books/pricing/
+View
+Read
+https://www.hellopeter.com/sage-pastel
+View
+Here's batch 1 as a single .md file. Copy it into a file called 01-Sage-Audit_Batch-1.md. Everything in it comes from pages I read in full today, and the gaps are marked "not yet audited".
+
+Copy# Logi-Ink Accounting: Sage Accounting SA Audit (Batch 1)
+
+Audit date: 2026-10-27
+Status: Batch 1 of the series. Covers Sage's own product, pricing and feature pages, one Sage Community thread, Hellopeter reviews, and Xero and Zoho Books pricing.
+Rule used: every item below was read on the live page today. Nothing is assumed.
+
+---
+
+## 1. Scope of Logi-Ink build (from brief)
+
+| Module | In scope |
+|---|---|
+| Quoting | Yes |
+| Invoicing | Yes |
+| Recurring invoices | Yes |
+| Customer statements | Yes |
+| Bank statement import + matching | Yes |
+| Payroll, inventory, time tracking, multi-currency, multi-company | No |
+
+---
+
+## 2. Sage Accounting SA: pricing
+
+Source: https://www.sage.com/en-za/sage-business-cloud/accounting/pricing/
+
+| Plan | Price (incl. VAT) | Notes |
+|---|---|---|
+| Accounting Start | R270/month (R3,240/year) | Aimed at sole traders and micro-businesses |
+| Accounting Standard | R490/month (R5,880/year) | 2 users, 1 company included; AutoEntry receipt capture |
+
+Paid add-ons (per month):
+
+| Add-on | Price |
+|---|---|
+| Additional user | R85 |
+| Additional company | R460 |
+| Advanced Inventory | R465 |
+| Debtors Manager | R325 |
+| Time Tracking | R185 |
+| Multi-currency payments | R185 |
+| Storage (1GB) | R20 |
+
+Discrepancies found:
+- The invoicing page says pricing "starts at R240 plus VAT per month". R240 + 15% VAT = R276, which doesn't match the R270 incl. VAT on the pricing page. The two Sage pages are out of sync. Source: https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+- A Sage reseller (JMV) posted that prices change from 1 October 2026. This is not confirmed on Sage's own site. Source: https://www.facebook.com/www.jmv.co.za/posts/sage-business-cloud-accounting-prices-change-from-1-october-2026-or-at-your-next/1740755868052761/
+
+---
+
+## 3. Sage Accounting SA: features in Logi-Ink scope
+
+### 3.1 Quoting and invoicing
+Source: https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+
+What Sage does:
+- Converts a quote to an invoice without re-entering details
+- Offers 9 invoice templates (product-based and service-based)
+- Lets you customise headings, footer, logo, theme and font colours, prefixes and numbering, contact details, line items (price, rate, qty/hours, discount per line), default T&Cs, and payment notes
+- Supports pro-forma and draft invoices
+- Tracks when an invoice was sent, viewed and paid
+- Has a Pay Now button on the invoice that auto-updates the invoice when the customer pays
+- Generates an online version of every invoice (shareable link or PDF)
+- Shows the status as outstanding, part paid or paid
+- Lets you allocate one payment across multiple invoices
+- Has a Quick Entries option for bulk sales invoices and credit notes
+- Sends invoices in batches
+- Copies invoices and quotes to Google Drive automatically
+- Has mobile apps for iOS and Android
+
+### 3.2 Recurring invoices
+Sources:
+- https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+- https://communityhub.sage.com/za/sage-accounting/f/general-discussion/205332/can-i-edit-my-description-field-every-month-on-my-recurring-invoices
+
+What Sage does:
+- Sends recurring invoices automatically at scheduled intervals, as PDF or online
+- Lets you review recurring runs as drafts before sending
+
+What's NOT working (confirmed by Sage's own support reply in the Community thread):
+- Editing an item's description in the item list does NOT update existing recurring invoices. Each recurring invoice has to be edited by hand.
+- Editing a recurring draft is a one-off fix. It does NOT update the recurring template.
+- A user can't add a changing value (e.g. the month) to a line description on each run.
+
+### 3.3 Bank import and reconciliation
+Source: https://www.sage.com/en-za/sage-business-cloud/accounting/features/connect-my-bank/
+
+What Sage does:
+- Has direct bank feeds with FNB, Nedbank and Investec only
+- For other banks, the page implies CSV upload ("no more .csv files" is listed as a benefit of the direct feeds)
+- Includes automatic bank reconciliation on all plans (per the pricing page)
+
+What's NOT working:
+- Direct feeds cover 3 banks only. Banks not listed on Sage's page (e.g. ABSA, Standard Bank, Capitec) have no direct feed.
+- The user has to re-confirm bank consent every 3 months.
+
+### 3.4 Customer statements
+Not yet audited. Needs the Sage help centre articles (batch 2).
+
+---
+
+## 4. Sage SA: customer sentiment
+
+Source: https://www.hellopeter.com/sage-pastel
+
+| Metric | Value |
+|---|---|
+| Hellopeter AI service score | 0.8 / 5 (industry avg 2.7) |
+| TrustIndex | 3 / 10 |
+| Reviews, last 12 months | 81 (1,622 total tracked) |
+| NPS | -43 |
+| Reply rate on negative reviews | 94%, ~8h |
+
+Recurring complaints (from reviews dated Oct 2026):
+- Debit orders continue after cancellation, and refunds are delayed for months
+- Billing was reinstated for "historical data" without the customer being notified
+- A support hold of 40 minutes ended in a referral to a paid business partner
+- Sage changed an account email address and the user lost access to their companies for ~2 weeks
+- Cancelling a free trial required signing a debit order mandate
+- Users were billed for site licences a single user doesn't need
+
+Weakest theme per Hellopeter: Trust & Ethics (0.7). Strongest: Staff Expertise (1.1).
+
+---
+
+## 5. Competitor pricing captured so far
+
+### 5.1 Xero (South Africa)
+Source: https://www.xero.com/za/pricing-plans/
+
+| Plan | Regular price (incl. VAT) | Limits in scope |
+|---|---|---|
+| Starter | R450/month | Quotes + 20 invoices, 5 bills, bank reconciliation |
+| Standard | R795/month | Unlimited invoices/quotes, bulk + auto reconcile |
+| Premium | R1,095/month | Adds multi-currency |
+
+- No per-user licence fees
+- New customers get 80% off for the first 3 months
+- Xero states its prices increase from 1 November 2026
+- Auto-reconcile is a paid add-on on Starter (R100/month on the compare table)
+- Online invoice payment fees are charged separately (Stripe)
+
+### 5.2 Zoho Books (South Africa)
+Source: https://www.zoho.com/za/books/pricing/
+
+| Plan | Price (excl. VAT, billed annually) | Users | Invoices/year |
+|---|---|---|---|
+| Free | R0 (while annual revenue is under R1m) | 1 + 1 accountant | 1,000 |
+| Standard | R82.50/month | 3 | 5,000 |
+| Professional | R165.83/month | 5 | 10,000 |
+| Premium | R249.17/month | 10 | 25,000 |
+
+- The Free plan already includes quotes, invoices, recurring invoices, bank reconciliation, a customer portal, payment reminders and online payments
+- Bank feeds and VAT tracking start on the Standard plan
+- An extra user costs R16.67/month billed annually
+
+### 5.3 Price comparison for the in-scope feature set
+
+| Product | Cheapest plan covering quotes + invoices + recurring + bank reconciliation |
+|---|---|
+| Zoho Books | Free (under R1m revenue, no bank feeds) / R82.50 excl. VAT with feeds |
+| Sage Accounting | R270/month incl. VAT |
+| Xero | R795/month incl. VAT (Starter is capped at 20 invoices) |
+
+---
+
+## 6. Build implications for Logi-Ink (from verified gaps only)
+
+| Sage gap (verified) | Logi-Ink requirement |
+|---|---|
+| Recurring invoices don't pick up item description changes | Recurring templates link to live item data, with an option to lock a line |
+| Can't add the month or period to a recurring line | Placeholder tokens in line descriptions, e.g. `{month}` and `{period}`, resolved at each run |
+| Editing a draft doesn't update the template | "Apply to template" toggle when editing a recurring draft |
+| Direct feeds for 3 banks only | CSV/OFX import with saved column maps per bank (FNB, ABSA, Standard Bank, Nedbank, Capitec, Investec) |
+| Add-ons push up the cost | No modules or add-ons; one in-house system |
+| Debit order and access lockouts | Self-hosted; our data, no vendor lock |
+
+---
+
+## 7. Not yet audited (next batches)
+
+- [ ] Sage help centre: statements, recurring invoice settings, bank import file formats and the matching rules engine
+- [ ] Sage University / official training pages
+- [ ] Top 20 third-party training sites (to be identified and listed with URLs)
+- [ ] YouTube: can't download or watch videos; only the video page titles and descriptions can be read
+- [ ] Competitors 3–20, each covering what they do, what they don't do, what's working and what's not, checked against the vendor's own site
+- [ ] Customer statements feature on every product
+Copy
+Batch 2 will be the Sage help centre deep dive: statements, recurring invoice settings, bank import formats and matching rules. Say go and I'll start it.

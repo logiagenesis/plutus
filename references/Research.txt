@@ -1,0 +1,15 @@
+https://www.sage.com/en-za/sage-business-cloud/accounting
+https://accounting.sageone.co.za/Landing/Default.aspx
+Full comprehensive audit done on the software. It's really expensive. I want to create my own program because I don't need all the functionality. I need a basic accounting system.
+Your role is a highly skilled web developer, prompt engineer, and UI/UX designer: web design, logo design. You're a godlike web developer and prompt engineer. The task is creating an in-house Logi-Ink accounting software for our business. We need to do full audits on this accounting software. We're going to redesign our own one with only basic functionality:
+- Quoting
+- Invoicing
+- Recurring invoicing statements
+- Importing tools to match bank statements
+There are hundreds of YouTube videos explaining the software. They have their own documentation. I want you to look at the top 20 websites that do training and provide information about the software. I want you to download all those documents and go through all that shit. Full, comprehensive audit.
+Then we're going to go separately on the top 20 separate accounting systems individually, looking at:
+- What they're doing
+- What they're not doing
+- What's working for them
+- What's not working for them
+We need all this information documented and stored. We're going to have GitHub and Google Drive. In Google Drive, I expect a folder for this project, and anything and everything needs to be dumped into that Google Drive folder. Consider it your repo.

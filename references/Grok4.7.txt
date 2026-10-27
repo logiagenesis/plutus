@@ -1,0 +1,243 @@
+I'll audit Sage and the main alternatives from public sources, then tell you exactly what can be documented from here and what I cannot dump into Drive or GitHub.
+
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting
+View
+Read
+https://accounting.sageone.co.za/Landing/Default.aspx
+View
+Parallel Search
+Sage Business Cloud Accounting South Africa features pricing
+Sage Accounting ZA documentation help centre training
+Sage One South Africa bank reconciliation invoicing quotes recurring
+top small business accounting software 2026 comparison Xero QuickBooks
+View
+Parallel Search
+Sage Accounting help centre South Africa quotes invoices bank feeds
+site:help.sage.com accounting quotes invoices recurring bank reconciliation
+Sage Business Cloud Accounting ZA feature list VAT quotes invoices statements
+best accounting software comparison 2026 Xero QuickBooks FreshBooks Wave Zoho Sage
+View
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting/pricing/
+View
+Read
+https://www.sage.com/africa/sage-business-cloud/accounting/training/
+View
+Sage's own pages are thin on how the product actually works. Pulling the feature list, ZA help docs, and independent comparisons next.
+
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting/features/
+View
+Read
+https://acculinkcpa.com/blog/quickbooks-online-vs-xero-vs-sage-vs-freshbooks-vs-zoho-books-complete-comparison
+View
+Parallel Search
+Sage Accounting South Africa help documentation quotes convert to invoice
+Sage Accounting ZA bank feeds supported banks CSV import reconciliation
+Xero QuickBooks FreshBooks Zoho Books Wave features limitations bank reconciliation invoicing
+accounting software South Africa comparison Sage Xero QuickBooks Pastel
+View
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+View
+Read
+https://www.sage.com/en-za/sage-business-cloud/accounting/features/connect-my-bank/
+View
+Read
+https://za-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=200426184055874&page=1&position=2&q=quote
+View
+Read
+https://odea.co.za/xero-vs-sage-vs-quickbooks-south-africa/
+View
+Read
+https://www.evergreen-accounting.co.za/best-accounting-software-south-africa-2025/
+View
+Sage's public docs don't cover the matching workflow. Checking the ZA knowledge base and current competitor pricing before I write this up.
+
+Parallel Search
+za-kb.sage.com bank reconciliation import statement CSV Sage Accounting
+Sage Accounting South Africa customer statements recurring invoices knowledge base
+Xero South Africa pricing 2026 plans bank reconciliation limitations
+QuickBooks Online South Africa pricing Zoho Books South Africa pricing
+View
+Read
+https://communityhub.sage.com/za/sage-accounting/f/general-discussion/111765/quotes-converted-to-invoices---history-function
+View
+Read
+https://www.xero.com/za/pricing-plans/
+View
+Read
+https://www.zoho.com/za/books/pricing/
+View
+Read
+https://communityhub.sage.com/za/sage-accounting/f/general-discussion/213306/battling-to-import-csv-bank-file---i-have-it-in-the-correct-format-but-keeps-telling-me-there-is-a-problem-doe-not-match-required-format
+View
+Read
+https://communityhub.sage.com/za/sage-accounting/f/general-discussion/200966/duplication-of-recurring-invoices
+View
+I can't do what you asked. I don't have access to your Google Drive or GitHub, and I can't download Sage's help library, YouTube training, or competitor documentation and dump it into a folder.
+
+What I did check, from public pages only:
+
+Sage Business Cloud Accounting ZA is the wrong product to clone. Official price is R270/month Start and R490/month Standard (2 users), incl. VAT, or R3,240 and R5,880 a year. Extra users are R85, extra companies R460, inventory R465, Debtors Manager R325. Sage pricing. Xero ZA is worse: Starter R450, Standard R795, Premium R1,095 after the intro discount, and prices rise again on 1 November 2026. Xero ZA pricing. Zoho Books ZA is free under R1 million annual revenue, then R82.50 / R165.83 / R249.17 billed annually, ex VAT. Zoho Books ZA.
+
+For Logi-Ink, the useful slice of Sage is four things, and they are badly implemented:
+
+Quote to invoice is Customers → Transactions → Customer Quotes → Actions → Create Invoice. Status can say Invoiced when no invoice was saved, or when someone flipped the status by hand. Sage's own reply was "use the audit trail." Sage KB and Sage City.
+Recurring invoices have duplicated 2, 3 and 4 times with the same invoice number. Sage's workaround was to edit the extras to zero so statements still send. Users also report blocked outbound email, bank feed failures, and bank import failures. Sage City.
+Direct bank feeds are only FNB, Nedbank and Investec. Not Absa. Not Standard Bank. CSV import is Banking → Transactions → Banking → Import Bank Statements, and the file must be exactly three columns: Date, Description, Amount. No blanks, no zeros, no double spaces. Sage bank feeds and Sage City CSV.
+You do not need stock, payroll, VAT submission, multi-currency, budgeting, project tracking, time tracking, or Debtors Manager. Those are the paid add-ons.
+I did not audit 20 training sites or 20 accounting systems. Most "training" sites are partner sales pages. The only ZA comparison worth reading is Evergreen Accounting, dated 27 July 2025, and its prices are already stale. Evergreen. A US comparison of QuickBooks, Xero, FreshBooks, Zoho, Wave and Sage is here, and it is not a South African product audit. Acculink.
+
+Build this, nothing else:
+
+Customers, quotes, invoices. A quote becomes an invoice only when the invoice row is saved. Store the quote id on the invoice and the invoice id on the quote. Never let a user set status to Invoiced by hand.
+Recurring invoices as a schedule that generates one draft, with a unique number, and a lock so the same period cannot run twice. Email from your own domain, not a shared Sage server.
+Statements as a date-range PDF of open invoices, not a separate document type.
+Bank import as CSV plus OFX/QIF. Match on amount, date window, and reference. Confirm every match. No live bank feed. Open banking in SA needs a registered third party, and you do not want that liability in-house.
+I cannot create the Drive folder or the GitHub repo from here. If you want the spec written as files, say where to put them. I will not invent Sage workflows I have not opened.
+
+Just give MD file document
+I'll verify the pricing figures I would otherwise have to guess, then hand you the markdown.
+
+Read
+https://www.zoho.com/za/books/pricing/pricing-comparison.html
+View
+Parallel Search
+QuickBooks Online South Africa pricing plans 2026
+Zoho Books free plan revenue limit South Africa
+Sage Accounting South Africa customer statements feature
+View
+Zoho's free-plan limit is USD, not rands. Confirming that and the QuickBooks ZA price before the file.
+
+Read
+https://www.zoho.com/za/books/pricing/
+View
+Read
+https://quickbooks.intuit.com/za/pricing-embed-sui/
+View
+Read
+https://za-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=200206101807123
+View
+Copy# Logi-Ink accounting — scope note
+
+Checked 27 October 2026. Public pages only. Not a full product audit. Sage help, YouTube, and partner "training" sites were not downloaded. I cannot write this into Google Drive or GitHub from here.
+
+## Do not build
+
+Stock, payroll, VAT submission, multi-currency, budgeting, project tracking, time tracking, Debtors Manager, live bank feeds.
+
+Open banking in South Africa needs a registered third party. Do not build a live bank connection in-house.
+
+## What Sage actually costs
+
+Source: https://www.sage.com/en-za/sage-business-cloud/accounting/pricing/
+
+- Accounting Start: from R270 per month, or from R3,240 per year, incl. VAT. Tier depending.
+- Accounting Standard: from R490 per month for 2 users, or from R5,880 per year, incl. VAT. Tier depending.
+- Extra user: R85 per month.
+- Extra company: R460 per month.
+- Advanced Inventory: R465 per month.
+- Debtors Manager: R325 per month.
+- Time Tracking: R185 per month.
+- Multi-currency payments: R185 per month.
+- Extra storage, 1 GB: R20 per month.
+- 30-day refund if you tell them it is not a fit. No long contract.
+
+Start is the sole-trader plan. Standard adds photo capture of receipts, invoices, and supplier statements. Both plans include the base accounting features. Roles exist, from read-only to full access.
+
+## What Sage does that Logi-Ink actually needs
+
+Source: https://www.sage.com/en-za/sage-business-cloud/accounting/features/invoicing/
+
+- Quote converts to invoice without retyping.
+- Recurring invoices.
+- PDF or online link. Customer can see outstanding, part-paid, paid.
+- One receipt can be split across several invoices.
+- Line discounts, numbering prefix, logo, terms, notes.
+- Quick Entries for batch sales invoices and credit notes.
+- Google Drive copy of invoices and quotes.
+- Pay Now updates the invoice when the customer pays. South Africa only. Not required for v1.
+
+Quote to invoice, confirmed in the ZA knowledge base (article created 26 April 2020, modified 6 June 2025):
+
+https://za-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=200426184055874
+
+1. Customers, then Transactions.
+2. Customer Quotes, Actions on the quote.
+3. Create Invoice.
+4. Enter customer ref. Edit quantity if needed.
+5. Save.
+
+Statements, ZA knowledge base:
+
+https://za-kb.sage.com/portal/app/portlets/results/viewsolution.jsp?solutionid=200206101807123
+
+1. Customers, then Reports, then Customer Statement Run.
+2. Customer range, status, categories, date range.
+3. Statement options, then how to send.
+4. Send Statements.
+
+Bank feeds, official ZA page. Direct feeds listed: FNB, Nedbank, Investec. Absa and Standard Bank are not on that page.
+
+https://www.sage.com/en-za/sage-business-cloud/accounting/features/connect-my-bank/
+
+CSV import, from Sage staff on Sage City. Path: Banking, Transactions, Banking, Import Bank Statements. File must be exactly three columns: Date, Description, Amount. No blank rows. No zero amounts. No double spaces. Save as CSV.
+
+https://communityhub.sage.com/za/sage-accounting/f/general-discussion/213306/battling-to-import-csv-bank-file---i-have-it-in-the-correct-format-but-keeps-telling-me-there-is-a-problem-doe-not-match-required-format
+
+## What is broken, from Sage's own forum
+
+Quote status can say Invoiced when no invoice exists. Causes Sage named: user set the status by hand, or converted and did not save. Invoice history shows the source quote. Quote history does not show the invoice number. Sage's reply was to use the audit trail. A user called this a fraud hole. Suggestion logged. No fix shown on the thread.
+
+https://communityhub.sage.com/za/sage-accounting/f/general-discussion/111765/quotes-converted-to-invoices---history-function
+
+Recurring invoices duplicated 2, 3, and 4 times with the same invoice number, across more than one customer, and reported again months later. Sage workaround: edit the duplicates to zero so they drop off the statement. Not a fix.
+
+https://communityhub.sage.com/za/sage-accounting/f/general-discussion/200966/duplication-of-recurring-invoices
+
+Same thread, user-reported, not verified by me: outbound email blocked despite SPF and whitelisting, year-to-date reports showing life-to-date, custom views resetting, lockouts, monthly server crashes, bank feed failures, bank import failures, same settings behaving differently across companies on one profile.
+
+## Competitors, prices I opened
+
+Xero South Africa, after the 80% intro discount ends. Prices rise again on 1 November 2026. Unlimited users. No per-user fee. Some direct bank feeds are chargeable, billed the following month.
+
+https://www.xero.com/za/pricing-plans/
+
+- Starter: R90 for 3 months, then R450. 20 invoices. 5 bills. Quotes. Bank reconciliation. No auto-reconcile unless you add it.
+- Standard: R159 for 3 months, then R795. Bulk reconcile. Auto-reconcile. 60-day cash flow forecast.
+- Premium: R219 for 3 months, then R1,095. Multi-currency. 180-day forecast. Industry benchmark.
+
+Zoho Books South Africa. Prices below are billed annually and exclude VAT. Monthly price is higher. I did not open the monthly column.
+
+https://www.zoho.com/za/books/pricing/
+
+- Free, indefinitely, while financial-year revenue stays at or under R1,000,000. 1 user plus 1 accountant. 1,000 invoices a year. 1,000 expenses a year. Quotes, recurring invoices, reminders, customer portal, bank import, bank reconciliation, transaction rules. No VAT. No bank feeds. No period lock. Email support only.
+- Standard: R82.50 per month billed annually. 3 users. VAT, VAT 201, bank feeds via a third party, period lock, API. 5,000 invoices a year.
+- Professional: R165.83. 5 users. Inventory, multi-currency, approvals, sales orders. 10,000 invoices a year.
+- Premium: R249.17. 10 users. Budgets, fixed assets, cash flow forecast. 25,000 invoices a year.
+- Extra user: R16.67 per month billed annually, or R20 month-to-month. Not on the free plan.
+
+QuickBooks Online South Africa pricing page did not show plan prices in the page text I fetched. Do not use a number for it.
+
+https://quickbooks.intuit.com/za/pricing-embed-sui/
+
+## What I did not audit
+
+I did not review 20 training sites or 20 products. Partner comparison pages are sales pages. One ZA comparison worth opening later, dated 27 July 2025, prices already stale:
+
+https://www.evergreen-accounting.co.za/best-accounting-software-south-africa-2025/
+
+A US comparison of QuickBooks, Xero, FreshBooks, Zoho, Wave, and Sage. Not a South African audit:
+
+https://acculinkcpa.com/blog/quickbooks-online-vs-xero-vs-sage-vs-freshbooks-vs-zoho-books-complete-comparison
+
+## Build this
+
+1. Customers, quotes, invoices. A quote becomes an invoice only when the invoice row is saved. Store the quote id on the invoice and the invoice id on the quote. Do not allow a manual status of Invoiced.
+2. Recurring invoices. A schedule creates one draft per period, with its own number. A lock stops the same period running twice. Send mail from logia.co.za, not a shared vendor server.
+3. Statements. A date-range PDF of open invoices. Not a separate document type. Path in the product can mirror Sage: customer, date range, send.
+4. Bank import. CSV first, three columns, same rule as Sage, plus OFX and QIF. Suggest a match on amount, date window, and reference. A person confirms every match. No live bank login.
+
+Out of v1: stock, payroll, VAT 201 filing, multi-currency, budgets, projects, time tracking, payment links.
