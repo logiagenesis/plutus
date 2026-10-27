@@ -1,0 +1,180 @@
+{
+  "project": "Accounting666",
+  "date": "2026-10-27",
+  "scope": "Preparation documents and reference snapshots",
+  "verified_commit": "893f649d41f9ffeb1e7aaf94ae6784703761a455",
+  "verification_method": "Full retrieved text equality against prepared content",
+  "checks": [
+    {
+      "destination": "github",
+      "path": "docs/00_START_HERE.md",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "docs/01_SOURCE_AUDIT.md",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "docs/02_PRODUCT_REQUIREMENTS.md",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "docs/03_DESIGN_SPECIFICATION.md",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "docs/04_HOSTING_AND_ARCHITECTURE.md",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "docs/05_DELIVERY_AND_OPERATIONS.md",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "docs/06_MASTER_BUILD_PROMPT.md",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "docs/07_SESSION_RECORD.md",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "references/Instructions-Design.txt",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "references/Grok4.7.txt",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "references/Opus5.5.txt",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "references/GPT5.5.txt",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "references/Research.txt",
+      "match": true
+    },
+    {
+      "destination": "github",
+      "path": "README.md",
+      "match": true
+    },
+    {
+      "destination": "drive",
+      "path": "docs/00_START_HERE.md",
+      "id": "16WhNg84-SktKxaagX_DjcOa7lRLYbZ93",
+      "url": "https://drive.google.com/file/d/16WhNg84-SktKxaagX_DjcOa7lRLYbZ93/view?usp=drivesdk",
+      "match": true,
+      "actualLength": 3481
+    },
+    {
+      "destination": "drive",
+      "path": "docs/01_SOURCE_AUDIT.md",
+      "id": "1c9RSvcts3uQ3OUnaxUhdNy900mg2u51t",
+      "url": "https://drive.google.com/file/d/1c9RSvcts3uQ3OUnaxUhdNy900mg2u51t/view?usp=drivesdk",
+      "match": true,
+      "actualLength": 6057
+    },
+    {
+      "destination": "drive",
+      "path": "docs/02_PRODUCT_REQUIREMENTS.md",
+      "id": "1B-O-S5Unulak2tt7wmSHJrut0eURfdpz",
+      "url": "https://drive.google.com/file/d/1B-O-S5Unulak2tt7wmSHJrut0eURfdpz/view?usp=drivesdk",
+      "match": true,
+      "actualLength": 5940
+    },
+    {
+      "destination": "drive",
+      "path": "docs/03_DESIGN_SPECIFICATION.md",
+      "id": "1L2fsF9i1FEOaIF8Uq_mR2byLicZuioK1",
+      "url": "https://drive.google.com/file/d/1L2fsF9i1FEOaIF8Uq_mR2byLicZuioK1/view?usp=drivesdk",
+      "match": true,
+      "actualLength": 7681
+    },
+    {
+      "destination": "drive",
+      "path": "docs/04_HOSTING_AND_ARCHITECTURE.md",
+      "id": "1IOcxGs193ZLTArOJ85aW0puwSTfT1xeH",
+      "url": "https://drive.google.com/file/d/1IOcxGs193ZLTArOJ85aW0puwSTfT1xeH/view?usp=drivesdk",
+      "match": true,
+      "actualLength": 7281
+    },
+    {
+      "destination": "drive",
+      "path": "docs/05_DELIVERY_AND_OPERATIONS.md",
+      "id": "14SzpXZq7HTYNtX0AGeQnDWqoUIyrkdlZ",
+      "url": "https://drive.google.com/file/d/14SzpXZq7HTYNtX0AGeQnDWqoUIyrkdlZ/view?usp=drivesdk",
+      "match": true,
+      "actualLength": 4953
+    },
+    {
+      "destination": "drive",
+      "path": "docs/06_MASTER_BUILD_PROMPT.md",
+      "id": "1fUhSh0TkLHUsSkbJNbOkZGAaudFiPYSk",
+      "url": "https://drive.google.com/file/d/1fUhSh0TkLHUsSkbJNbOkZGAaudFiPYSk/view?usp=drivesdk",
+      "match": true,
+      "actualLength": 11201
+    },
+    {
+      "destination": "drive",
+      "path": "docs/07_SESSION_RECORD.md",
+      "id": "19l2VG4HQ5A1dMPQvdALpSEnbmWpr4CL2",
+      "url": "https://drive.google.com/file/d/19l2VG4HQ5A1dMPQvdALpSEnbmWpr4CL2/view?usp=drivesdk",
+      "match": true,
+      "actualLength": 2162
+    }
+  ],
+  "originals": [
+    {
+      "name": "Instructions - Design.txt",
+      "id": "15PMH99SBsgzhNsbRD10cj1OFez0-iHLd",
+      "url": "https://drive.google.com/file/d/15PMH99SBsgzhNsbRD10cj1OFez0-iHLd/view?usp=drivesdk",
+      "reported_bytes": 1779
+    },
+    {
+      "name": "Grok4.7.txt",
+      "id": "187iIUtHjrfVLDKCHbOwf_qFhXiO9nU6b",
+      "url": "https://drive.google.com/file/d/187iIUtHjrfVLDKCHbOwf_qFhXiO9nU6b/view?usp=drivesdk",
+      "reported_bytes": 14690
+    },
+    {
+      "name": "Opus5.5.txt",
+      "id": "1iq5KK28fMll7E0yA2FltORihu19Q_iWL",
+      "url": "https://drive.google.com/file/d/1iq5KK28fMll7E0yA2FltORihu19Q_iWL/view?usp=drivesdk",
+      "reported_bytes": 13105
+    },
+    {
+      "name": "GPT5.5.txt",
+      "id": "1v1JxE7vsPQAKtgts_MToDsQkXx5ggUtz",
+      "url": "https://drive.google.com/file/d/1v1JxE7vsPQAKtgts_MToDsQkXx5ggUtz/view?usp=drivesdk",
+      "reported_bytes": 24756
+    },
+    {
+      "name": "Research.txt",
+      "id": "1r9PAaBIatfgxOSGCGjo0G9Y7JcoNYcLV",
+      "url": "https://drive.google.com/file/d/1r9PAaBIatfgxOSGCGjo0G9Y7JcoNYcLV/view?usp=drivesdk",
+      "reported_bytes": 1519
+    }
+  ],
+  "limitations": [
+    "Reference snapshots are retrieved text, not original-byte hashes.",
+    "Application is not implemented or deployed.",
+    "Prior audits are contextual material."
+  ]
+}
