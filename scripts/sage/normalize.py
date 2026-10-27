@@ -21,7 +21,7 @@ def cents(x):
 
 
 def qty(x):  # quantities kept as exact decimal strings
-    return str(Decimal(str(x)).normalize())
+    return format(Decimal(str(x)).normalize(), "f")
 
 
 def clean(s):
@@ -49,7 +49,7 @@ def lines(doc, kind):
             "lineNo": n, "description": l["Description"], "comments": clean(l.get("Comments")),
             "itemSageId": l.get("SelectionId"), "unit": clean(l.get("Unit")),
             "quantity": qty(l["Quantity"]), "unitPriceExclCents": cents(l["UnitPriceExclusive"]),
-            "discountPercent": str(Decimal(str(l["DiscountPercentage"])) * 100),
+            "discountPercent": format((Decimal(str(l["DiscountPercentage"])) * 100).normalize(), "f"),
             "discountCents": cents(l["Discount"]), "exclusiveCents": cents(l["Exclusive"]),
             "taxRate": str(Decimal(str(l["TaxPercentage"]))), "taxSageTypeId": l["TaxTypeId"],
             "taxCents": cents(l["Tax"]), "totalCents": cents(l["Total"]),

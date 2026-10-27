@@ -5,3 +5,4 @@ dist/
 data/
 *.json.gz
 *_Import_*.json
+app/src/data/
