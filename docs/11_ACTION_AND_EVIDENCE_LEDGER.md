@@ -1,0 +1,80 @@
+# Accounting666 — action and evidence ledger
+Date: 27 October 2026.
+Scope: actions performed in this conversation. This is an explicit operational summary, not raw tool telemetry.
+
+## Source discovery and reads
+- Drive root: 19wJFooMd-9_11eNlf5antaifsXl4J3RL.
+- Initial children: Development, Audits, Reasearch.
+- All three initial children listed; all five text files fetched and read.
+- Full inventory, IDs, reported sizes, conflicts and missing inputs: 01_SOURCE_AUDIT.md.
+- Repository metadata, main recursive tree, README, initial ref and commit read through GitHub.
+- Initial commit 88684324ffb610c420acfd78044042fbc5dcff4f; initial tree 7f4c70b38f92c160a372fa5b720d08692a3effe7.
+- Initial tree contained README.md only; recursive response was not truncated.
+
+## Research actually performed
+Official Cloudflare Workers/D1 pricing, limits, recovery, database API, placement, R2 pricing/activation; Firebase pricing/functions/scheduling; Render Free; Vercel Hobby.
+Design evidence: Apple software announcement, Apple iOS page CSS via MiroMiro, Figma trends, W3C WCAG, Carbon data tables and Google Web Vitals.
+Exact applied source URLs and limitations are in the design and hosting specifications.
+No claim of signed-in Sage testing, exhaustive external-link review or 20/20/25-site audits.
+
+## Drive changes
+Renamed folders without replacing their IDs:
+- Reasearch -> 01_Research, ID 1r-8e7bN4mPiRI_i-dNMmpuqiTKB6yIZI.
+- Audits -> 02_Reference_Audits, ID 1Wz9t7Bt1c3WASniwkfU-nv4uw2Xr3Qj4.
+- Development -> 03_Development, ID 1n1g_KJ2X1qVNs4c2oOU3YJrSxOt3F_3b.
+
+Created:
+- 00_Project_Control: 1Px6qt_D7rTdJ4Ry2POL9LEXMpjBvLvpM.
+- 03_Development/01_Design: 1zUS6pQpNJ03vieRcz-mczqXbTtFVThnp.
+- 03_Development/02_Architecture_and_Hosting: 19CylMiMp723rqiBFSkb4oPG6hYw0ce2s.
+- 03_Development/03_Build_Prompt: 1RkhtpMb87_ahNIpu0CfOQraI8Jsl8u8b.
+
+Saved documents 00–07, verification manifest 08 and Cloudflare addendum 09. Updated index 00 in place after the account check. Original source file content was re-fetched and compared successfully after initial publication; no originals were rewritten or deleted.
+Conversation/action records 10–11 are added as part of the current documentation instruction.
+
+## GitHub publication history
+| Commit | Change |
+|---|---|
+| 893f649d41f9ffeb1e7aaf94ae6784703761a455 | Eight planning docs, five source snapshots, README index |
+| 6a0b34228318a6be3567a90746699b7b904b9ff5 | Original verification manifest |
+| b0c26aadc753230fdc1dacd76ea9da1714c7260c | Cloudflare account check and index update |
+
+Branch updates used expected-head checks; no forced rewrite was requested. Current-turn transcript/log publication is a later commit visible in repository history.
+
+## Verification evidence
+- Initial 14 GitHub file readbacks matched prepared text: eight docs, five reference snapshots and README.
+- Initial eight Drive planning file readbacks matched prepared text.
+- Verification manifest matched in GitHub and Drive after decoding Drive's JSON response.
+- All five original Drive source files were re-read and still matched the originally retrieved text.
+- Before the latest addendum, all eight current Drive/GitHub planning document pairs were compared again and matched.
+- The original 08 manifest deliberately identifies the historical commit it checks; it is not a blanket certificate for later edits.
+- Current additions require destination readback before being reported complete.
+
+## Cloudflare inspection
+Read-only account inventory succeeded; account ID ddcd0a9eefadc42e5826dcbc4ef94cd4.
+Workers scripts, D1 databases and Pages projects returned zero.
+Subscription inspection failed with HTTP 403 / 10000; OAuth connection does not cover the billing endpoint. A separate permitted credential would be required to inspect it.
+No resources, database, subscription, deployment or charge were created by these actions.
+Details and implications: 09_CLOUDFLARE_ACCOUNT_CHECK.md.
+
+## Failed attempts and recovery
+| Attempt | Observed result | Recovery / consequence |
+|---|---|---|
+| Initial Drive folder-list call used folder_id | Required url argument missing | Used canonical folder URL successfully |
+| Initial GitHub repository call used incompatible arguments | Invalid arguments | Used supported GitHub fetch URL |
+| Initial create-folder calls used parent_id/parent | Invalid arguments | Read schema and used parent_folder |
+| PowerShell workspace inspection | FileSystem initialisation failure; rg unavailable; workspace access denied | Used authenticated remote connectors; wrote temporary artifacts in permitted Temp directory via Node |
+| Large combined source output | Tool display truncated repeated content | Stored retrieved results and read source content in smaller sections |
+| Apple HIG materials fetch | JavaScript page; Markdown fetch unsupported | Marked unsuccessful; used retrievable Apple announcement and CSS evidence |
+| Early cross-cell commit lookup | Stored result not yet available while prior call running | Waited for completion and used returned commit SHA |
+| First Cloudflare grouped inspection | Subscription error rejected grouped result | Re-ran inventory calls with per-resource error handling |
+| Drive JSON manifest text equality | Empty readable-text field | Decoded returned JSON bytes; equality passed |
+
+These failures were not presented as successful work. No failed action is evidence of an existing resource or completed deployment.
+
+## Open work
+Implementation/prototype, runtime compatibility and CPU/PDF/import benchmark, auth and permissions tests, financial concurrency tests, restore exercise, real business setup, migration reconciliation, sender/domain setup and production hosting decision.
+This ledger and the conversation record cover available current-session material. They do not fabricate missing historical chats or pretend that design/application tests have already run.
+
+## Ongoing documentation rule
+For every substantive project round, preserve requests, decisions, sources, code/config changes, verification results, failures, unresolved work and artifact locations in GitHub and the organised Drive project. Include reviewable screenshots/test evidence when those artifacts exist. Never claim an unsaved or unverified copy exists.

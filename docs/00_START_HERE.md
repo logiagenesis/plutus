@@ -40,3 +40,9 @@ No claim is made that 20 competitors, 20 training websites or 25 design websites
 
 ## Latest account check
 See [09_CLOUDFLARE_ACCOUNT_CHECK.md](https://github.com/logiagenesis/accounting666/blob/main/docs/09_CLOUDFLARE_ACCOUNT_CHECK.md) for the verified Cloudflare inventory, billing-access limitation and documentation review. A matching copy is saved in Drive under 03_Development/02_Architecture_and_Hosting. The original verification manifest covers its named historical commit, not later updates.
+
+## Conversation and action records
+- [10_CONVERSATION_RECORD.md](https://drive.google.com/file/d/1ZLa90zh9YB7c7kGeFiuTkqWaQmsHVx2M/view?usp=drivesdk) — user instructions and chronological decisions.
+- [11_ACTION_AND_EVIDENCE_LEDGER.md](https://drive.google.com/file/d/1Mdqf1QSyMyARz-PwuAd_TvKaa-Jyh_L-/view?usp=drivesdk) — actions, failures, checks, commits and outstanding work.
+- 12_ASSISTANT_MESSAGE_ARCHIVE.md — assistant messages through the stated capture boundary.
+All three records are in Drive/00_Project_Control and GitHub/docs. These cover this project conversation, not unavailable historical chats. Append dated records every substantive round.
