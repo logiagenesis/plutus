@@ -6,6 +6,6 @@
   "assets": { "directory": "./dist", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
   "d1_databases": [{ "binding": "DB", "database_name": "accounting666", "database_id": "819d4a2d-8f85-42d3-8ce2-e2142282b88a", "migrations_dir": "migrations" }],
   "observability": { "enabled": true },
-  // Set these after Cloudflare Access is configured (Workers dashboard → Settings → Variables). Until then the API refuses to serve data.
-  "vars": { "ACCESS_TEAM_DOMAIN": "", "ACCESS_AUD": "" }
+  // Cloudflare Access application for this Worker (public identifiers, not secrets). The API verifies every request against them.
+  "vars": { "ACCESS_TEAM_DOMAIN": "https://denweb.cloudflareaccess.com", "ACCESS_AUD": "a6523774c751c064bdcef4eb33dbbc689ebfc464d6a4b206f45d117a869e03aa" }
 }
