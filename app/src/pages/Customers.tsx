@@ -2,9 +2,10 @@ import { useMemo, useState } from "react";
 import { data, invoices, quotes, customersById, fmtDate, invoiceStatus, nextRun } from "../data";
 import { rand } from "../money";
 import { I, Pill, Empty } from "../ui";
-import { go } from "../App";
+import { go, useApp } from "../App";
 
 export function CustomerList() {
+  const { rev } = useApp();
   const [q, setQ] = useState("");
   const stats = useMemo(() => {
     const m = new Map<number, { count: number; last: string; recurring: number }>();
@@ -14,7 +15,7 @@ export function CustomerList() {
     }
     for (const r of data.recurring) if (r.active) { const s = m.get(r.customerSageId) ?? { count: 0, last: "", recurring: 0 }; s.recurring += r.totalCents; m.set(r.customerSageId, s); }
     return m;
-  }, []);
+  }, [rev]);
   const rows = data.customers
     .filter((c) => !q || [c.name, c.contactName, c.email, c.category].some((v) => (v ?? "").toLowerCase().includes(q.toLowerCase())))
     .sort((a, b) => (stats.get(b.sageId)?.last ?? "").localeCompare(stats.get(a.sageId)?.last ?? "") || a.name.localeCompare(b.name));
@@ -22,7 +23,7 @@ export function CustomerList() {
     <div className="page">
       <div className="page-head">
         <div><h1>Customers</h1><p className="sub">{data.customers.length} customers · most recently invoiced first</p></div>
-        <button className="btn" disabled title="Adding customers comes with the database in the next step"><I.plus />Add customer</button>
+        <a className="btn primary" href="#/customers/new"><I.plus />Add customer</a>
       </div>
       <section className="glass panel">
         <div className="panel-head">
@@ -56,6 +57,7 @@ export function CustomerList() {
 }
 
 export function CustomerView({ id }: { id: number }) {
+  useApp();
   const c = customersById.get(id);
   if (!c) return <div className="page"><a className="crumb" href="#/customers"><I.back />Customers</a><Empty title="Customer not found" /></div>;
   const inv = invoices.filter((d) => d.customerSageId === id);
@@ -69,7 +71,8 @@ export function CustomerView({ id }: { id: number }) {
         <div><h1>{c.name}</h1><p className="sub">{c.category ?? "No category"} · {inv.length} invoices · {rand(total)} invoiced in total</p></div>
         <div className="toolbar">
           <a className="btn" href={`#/quotes/new`}>New quote</a>
-          <a className="btn primary" href={inv[0] ? `#/invoices/new?from=invoice:${inv[0].sageId}` : "#/invoices/new"}><I.plus />New invoice</a>
+          <a className="btn" href={`#/customers/${c.sageId}/edit`}>Edit</a>
+          <a className="btn primary" href={inv.find((d) => d.status === "issued") ? `#/invoices/new?from=${inv.find((d) => d.status === "issued")!.sageId}` : "#/invoices/new"}><I.plus />New invoice</a>
         </div>
       </div>
       <div className="detail">
@@ -94,7 +97,7 @@ export function CustomerView({ id }: { id: number }) {
                 <thead><tr><th>Number</th><th className="hide-xs">Date</th><th className="r">Total</th><th className="hide-sm">Status</th></tr></thead>
                 <tbody>{inv.slice(0, 30).map((d) => { const st = invoiceStatus(d); return (
                   <tr key={d.sageId} className="row" tabIndex={0} onClick={() => go(`/invoices/${d.sageId}`)} onKeyDown={(e) => e.key === "Enter" && go(`/invoices/${d.sageId}`)}>
-                    <td><div className="strong">{d.number}</div><div className="cell-sub">{d.lines[0]?.description}</div></td>
+                    <td><div className="strong">{d.status === "draft" ? "Draft" : d.number}</div><div className="cell-sub">{d.firstLine}</div></td>
                     <td className="hide-xs muted">{fmtDate(d.date)}</td><td className="r num strong">{rand(d.totalCents)}</td>
                     <td className="hide-sm"><Pill tone={st.tone}>{st.label}</Pill></td>
                   </tr>); })}</tbody>

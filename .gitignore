@@ -6,3 +6,5 @@ data/
 *.json.gz
 *_Import_*.json
 app/src/data/
+.dev.vars
+.wrangler/

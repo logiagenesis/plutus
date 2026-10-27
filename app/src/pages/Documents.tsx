@@ -1,80 +1,79 @@
-import { useMemo, useState } from "react";
-import { invoices, quotes, customerName, fmtDate, invoiceStatus, quoteStatus, data, type Doc } from "../data";
+import { useEffect, useMemo, useState } from "react";
+import { invoices, quotes, customerName, fmtDate, invoiceStatus, quoteStatus, data, api, mapDoc, type Doc } from "../data";
 import { rand } from "../money";
 import { I, Pill, Empty } from "../ui";
-import { go, useApp, type Draft } from "../App";
+import { go, useApp } from "../App";
 import Paper from "./Paper";
 
 type Kind = "invoice" | "quote";
 const PAGE = 25;
 
 export function DocList({ kind }: { kind: Kind }) {
-  const { drafts } = useApp();
-  const all: (Doc & { draft?: boolean })[] = useMemo(() => [
-    ...drafts.filter((d) => d.kind === kind).map((d) => ({ ...d, draft: true })),
-    ...(kind === "invoice" ? invoices : quotes),
-  ], [drafts, kind]);
+  useApp();
+  const all = kind === "invoice" ? invoices : quotes;
   const years = useMemo(() => [...new Set(all.map((d) => d.date.slice(0, 4)))].sort().reverse(), [all]);
   const [q, setQ] = useState("");
   const [year, setYear] = useState("all");
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(0);
-  const statusOf = (d: Doc & { draft?: boolean }) => d.draft ? { label: "Draft", tone: "info" as const } : kind === "invoice" ? invoiceStatus(d) : quoteStatus(d);
-  const statuses = useMemo(() => [...new Set(all.map((d) => statusOf(d).label))], [all]);
+  const statusOf = (d: Doc) => (kind === "invoice" ? invoiceStatus(d) : quoteStatus(d));
+  const statuses = useMemo(() => [...new Set(all.map((d) => statusOf(d).label))], [all]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = all.filter((d) => {
     if (year !== "all" && !d.date.startsWith(year)) return false;
     if (status !== "all" && statusOf(d).label !== status) return false;
     if (!q) return true;
     const s = q.toLowerCase();
-    return d.number.toLowerCase().includes(s) || customerName(d.customerSageId, d.customerName).toLowerCase().includes(s)
-      || (d.reference ?? "").toLowerCase().includes(s) || d.lines.some((l) => l.description.toLowerCase().includes(s));
+    return d.number.toLowerCase().includes(s) || customerName(d.customerSageId).toLowerCase().includes(s)
+      || (d.reference ?? "").toLowerCase().includes(s) || (d.firstLine ?? "").toLowerCase().includes(s);
   });
   const shown = rows.slice(page * PAGE, page * PAGE + PAGE);
   const total = rows.reduce((a, d) => a + d.totalCents, 0);
   const label = kind === "invoice" ? "Invoices" : "Quotes";
   const base = kind === "invoice" ? "invoices" : "quotes";
+  const fromSage = all.some((d) => d.sageStatus);
 
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1>{label}</h1><p className="sub">{all.length} {label.toLowerCase()} · imported from Sage</p></div>
+        <div><h1>{label}</h1><p className="sub">{all.length} {label.toLowerCase()}</p></div>
         <a className="btn primary" href={`#/${base}/new`}><I.plus />New {kind}</a>
       </div>
-      {kind === "invoice" && (
+      {kind === "invoice" && fromSage && (
         <div className="notice" style={{ marginBottom: 16 }}>
           <I.alert />
           <div><strong>Payments were not recorded in Sage after February 2022.</strong>
-            <p>So almost every invoice shows “Not checked”. This is not money owed until we match it to your FNB statement.</p></div>
+            <p>So almost every imported invoice shows “Not checked”. This is not money owed until we match it to your FNB statement.</p></div>
         </div>
       )}
       <section className="glass panel">
         <div className="panel-head">
           <div className="toolbar" style={{ flex: 1 }}>
             <label className="search" style={{ flex: "1 1 260px", maxWidth: 420 }}>
-              <I.search /><input className="input" placeholder={`Search ${label.toLowerCase()}, customers or items`} value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} aria-label={`Search ${label.toLowerCase()}`} />
+              <I.search /><input className="input" id={`search-${kind}`} placeholder={`Search ${label.toLowerCase()}, customers or items`} value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} aria-label={`Search ${label.toLowerCase()}`} />
             </label>
-            <select className="select" style={{ width: 130 }} value={year} onChange={(e) => { setYear(e.target.value); setPage(0); }} aria-label="Year">
+            <select className="select" id={`year-${kind}`} style={{ width: 130 }} value={year} onChange={(e) => { setYear(e.target.value); setPage(0); }} aria-label="Year">
               <option value="all">All years</option>{years.map((y) => <option key={y}>{y}</option>)}
             </select>
-            <select className="select" style={{ width: 210 }} value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }} aria-label="Status">
+            <select className="select" id={`status-${kind}`} style={{ width: 210 }} value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }} aria-label="Status">
               <option value="all">All statuses</option>{statuses.map((s) => <option key={s}>{s}</option>)}
             </select>
           </div>
           <div className="muted num" aria-live="polite">{rows.length} shown · {rand(total)}</div>
         </div>
-        {rows.length === 0 ? <Empty title="Nothing matches">Try a different search or clear the filters.</Empty> : (
+        {all.length === 0 ? <Empty title={`No ${label.toLowerCase()} yet`}><p><a className="btn primary small" href={`#/${base}/new`}>Create the first one</a></p></Empty>
+          : rows.length === 0 ? <Empty title="Nothing matches">Try a different search or clear the filters.</Empty> : (
           <div className="table-wrap">
             <table className="grid">
               <thead><tr><th>Number</th><th>Customer</th><th className="hide-xs">Date</th><th className="hide-sm">{kind === "invoice" ? "Due" : "Reference"}</th><th className="r">Total</th><th className="hide-sm">Status</th></tr></thead>
               <tbody>
                 {shown.map((d) => {
                   const st = statusOf(d);
-                  const href = `/${base}/${d.draft ? d.number : d.sageId}`;
+                  const href = `/${base}/${d.sageId}`;
                   return (
-                    <tr key={d.number + (d.draft ? "d" : "")} className="row" tabIndex={0} onClick={() => go(href)} onKeyDown={(e) => e.key === "Enter" && go(href)}>
-                      <td className="strong">{d.number}</td>
-                      <td><div>{customerName(d.customerSageId, d.customerName)}</div><div className="cell-sub">{d.lines[0]?.description}{d.lines.length > 1 ? ` + ${d.lines.length - 1} more` : ""}</div></td>
+                    <tr key={d.sageId} className="row" tabIndex={0} onClick={() => go(href)} onKeyDown={(e) => e.key === "Enter" && go(href)}>
+                      <td className="strong">{d.status === "draft" ? <span className="muted">Draft</span> : d.number}</td>
+                      <td><div>{customerName(d.customerSageId)}</div><div className="cell-sub">{d.firstLine}{(d.lineCount ?? 0) > 1 ? ` + ${(d.lineCount ?? 1) - 1} more` : ""}</div></td>
                       <td className="hide-xs muted">{fmtDate(d.date)}</td>
                       <td className="hide-sm muted">{kind === "invoice" ? fmtDate(d.dueDate) : d.reference ?? "—"}</td>
                       <td className="r num strong">{rand(d.totalCents)}</td>
@@ -101,47 +100,110 @@ export function DocList({ kind }: { kind: Kind }) {
 }
 
 export function DocView({ kind, id }: { kind: Kind; id: string }) {
-  const { drafts } = useApp();
+  const { reload, notify } = useApp();
   const base = kind === "invoice" ? "invoices" : "quotes";
-  const draft = drafts.find((d) => d.kind === kind && d.number === id) as Draft | undefined;
-  const doc: Doc | undefined = draft ?? (kind === "invoice" ? invoices : quotes).find((d) => String(d.sageId) === id);
-  if (!doc) return <div className="page"><a className="crumb" href={`#/${base}`}><I.back />{kind === "invoice" ? "Invoices" : "Quotes"}</a><Empty title="Not found">This document doesn’t exist.</Empty></div>;
-  const st = draft ? { label: "Draft", tone: "info" as const } : kind === "invoice" ? invoiceStatus(doc) : quoteStatus(doc);
-  const c = data.customers.find((x) => x.sageId === doc.customerSageId);
-  const copyHref = (to: Kind) => `#/${to === "invoice" ? "invoices" : "quotes"}/new?from=${kind}:${draft ? doc.number : doc.sageId}`;
+  const [doc, setDoc] = useState<Doc | null | "missing">(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"" | "issue" | "delete">("");
+  const [confirm, setConfirm] = useState<"" | "issue" | "delete">("");
+  useEffect(() => {
+    let live = true;
+    api<any>(`documents/${Number(id)}`).then((d) => live && setDoc(mapDoc(d))).catch((e) => live && (e.status === 404 ? setDoc("missing") : setLoadErr(e.message)));
+    return () => { live = false; };
+  }, [id]);
+
+  const crumb = <a className="crumb" href={`#/${base}`}><I.back />{kind === "invoice" ? "Invoices" : "Quotes"}</a>;
+  if (loadErr) return <div className="page">{crumb}<div className="notice"><I.alert /><div><strong>Couldn’t open this document</strong><p>{loadErr}</p></div></div></div>;
+  if (doc === "missing") return <div className="page">{crumb}<Empty title="Not found">This document doesn’t exist.</Empty></div>;
+  if (!doc) return <div className="page">{crumb}<div className="skel" style={{ width: 240, height: 34 }} /><div className="detail" style={{ marginTop: 22 }}><div className="skel" style={{ height: 560 }} /><div className="skel" style={{ height: 200 }} /></div></div>;
+
+  const d = doc;
+  const isDraft = d.status === "draft";
+  const st = kind === "invoice" ? invoiceStatus(d) : quoteStatus(d);
+  const c = data.customers.find((x) => x.sageId === d.customerSageId);
+  const label = kind === "invoice" ? "invoice" : "quote";
+
+  async function issue() {
+    setBusy("issue"); setErr(null);
+    try {
+      const nd = mapDoc(await api<any>(`documents/${d.sageId}/issue`, { method: "POST", body: { version: d.version } }));
+      await reload(); setDoc(nd); notify(`${kind === "invoice" ? "Invoice" : "Quote"} ${nd.number} issued`);
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(""); setConfirm(""); }
+  }
+  async function remove() {
+    setBusy("delete"); setErr(null);
+    try { await api(`documents/${d.sageId}`, { method: "DELETE" }); await reload(); notify("Draft deleted"); go(`/${base}`, true); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); setBusy(""); setConfirm(""); }
+  }
 
   return (
     <div className="page">
-      <a className="crumb" href={`#/${base}`}><I.back />{kind === "invoice" ? "Invoices" : "Quotes"}</a>
+      {crumb}
       <div className="page-head">
         <div>
-          <h1 className="num">{doc.number}</h1>
-          <p className="sub">{customerName(doc.customerSageId, doc.customerName)} · {fmtDate(doc.date)}</p>
+          <h1 className="num">{isDraft ? `Draft ${label}` : d.number}</h1>
+          <p className="sub">{customerName(d.customerSageId)} · {fmtDate(d.date)}</p>
         </div>
         <div className="toolbar">
           <Pill tone={st.tone}>{st.label}</Pill>
-          {kind === "quote" && <a className="btn primary" href={copyHref("invoice")}><I.invoice />Turn into invoice</a>}
-          <a className="btn" href={copyHref(kind)}><I.copy />Copy</a>
+          {isDraft ? (
+            <>
+              <a className="btn" href={`#/${base}/${d.sageId}/edit`}>Edit</a>
+              <button className="btn primary" onClick={() => setConfirm("issue")} disabled={!!busy}><I.check />Issue {label}</button>
+            </>
+          ) : (
+            <>
+              {kind === "quote" && <a className="btn primary" href={`#/invoices/new?from=${d.sageId}`}><I.invoice />Turn into invoice</a>}
+              <a className="btn" href={`#/${base}/new?from=${d.sageId}`}><I.copy />Copy</a>
+            </>
+          )}
         </div>
       </div>
+      {confirm === "issue" && (
+        <div className="notice info" style={{ marginBottom: 16 }} role="alertdialog" aria-labelledby="iss-h">
+          <I.info /><div style={{ flex: 1 }}>
+            <strong id="iss-h">Issue this {label} for {rand(d.totalCents)}?</strong>
+            <p>It gets the next number and is locked, so it can’t be edited afterwards. Nothing is emailed.</p>
+            <div className="toolbar" style={{ marginTop: 10 }}>
+              <button className="btn primary small" onClick={issue} disabled={!!busy}>{busy === "issue" ? "Issuing…" : `Yes, issue ${label}`}</button>
+              <button className="btn ghost small" onClick={() => setConfirm("")}>Not yet</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {confirm === "delete" && (
+        <div className="notice" style={{ marginBottom: 16 }} role="alertdialog" aria-labelledby="del-h">
+          <I.alert /><div style={{ flex: 1 }}>
+            <strong id="del-h">Delete this draft?</strong><p>This can’t be undone.</p>
+            <div className="toolbar" style={{ marginTop: 10 }}>
+              <button className="btn small" onClick={remove} disabled={!!busy}>{busy === "delete" ? "Deleting…" : "Yes, delete draft"}</button>
+              <button className="btn ghost small" onClick={() => setConfirm("")}>Keep it</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {err && <div className="notice" style={{ marginBottom: 16 }}><I.alert /><div><strong>That didn’t work</strong><p>{err}</p></div></div>}
       <div className="detail">
-        <div><Paper kind={kind} number={doc.number} date={doc.date} dueDate={kind === "invoice" ? doc.dueDate : doc.expiryDate} reference={doc.reference}
-          customerSageId={doc.customerSageId} customerName={doc.customerName} lines={doc.lines} exclusiveCents={doc.exclusiveCents}
-          taxCents={doc.taxCents} totalCents={doc.totalCents} discountCents={doc.discountCents} message={draft ? draft.message : kind === "invoice" ? data.invoiceMessage : null} draft={!!draft} /></div>
+        <div><Paper kind={kind} number={isDraft ? "Draft" : d.number} date={d.date} dueDate={d.dueDate} reference={d.reference}
+          customerSageId={d.customerSageId} lines={d.lines} exclusiveCents={d.exclusiveCents}
+          taxCents={d.taxCents} totalCents={d.totalCents} discountCents={d.discountCents} message={d.message ?? (kind === "invoice" ? data.invoiceMessage : null)} draft={isDraft} /></div>
         <div className="stack">
           <section className="glass">
             <div className="panel-head"><h2>Summary</h2></div>
             <dl className="kv num">
-              <dt>Total</dt><dd className="strong">{rand(doc.totalCents)}</dd>
-              <dt>VAT</dt><dd>{rand(doc.taxCents)}</dd>
-              {kind === "invoice" && <><dt>Due date</dt><dd>{fmtDate(doc.dueDate)}</dd></>}
-              {doc.fromDocument && <><dt>From quote</dt><dd>{doc.fromDocument}</dd></>}
-              {doc.reference && <><dt>Reference</dt><dd>{doc.reference}</dd></>}
+              <dt>Total</dt><dd className="strong">{rand(d.totalCents)}</dd>
+              <dt>VAT</dt><dd>{rand(d.taxCents)}</dd>
+              <dt>{kind === "invoice" ? "Due date" : "Valid until"}</dt><dd>{fmtDate(d.dueDate)}</dd>
+              {d.fromDocument && <><dt>From</dt><dd>{d.fromDocument}</dd></>}
+              {d.reference && <><dt>Reference</dt><dd>{d.reference}</dd></>}
             </dl>
           </section>
-          {kind === "invoice" && !draft && st.label === "Not checked" && (
-            <div className="notice"><I.alert /><div><strong>Payment not checked yet</strong><p>Sage has no payment recorded for this invoice. Matching your FNB statement will show if it was paid.</p></div></div>
+          {kind === "invoice" && st.label === "Not checked" && (
+            <div className="notice"><I.alert /><div><strong>Payment not checked yet</strong><p>No payment is recorded for this invoice. Matching your FNB statement will show if it was paid.</p></div></div>
           )}
+          {isDraft && <button className="btn ghost" onClick={() => setConfirm("delete")} style={{ alignSelf: "flex-start" }}><I.trash />Delete draft</button>}
           {c && (
             <a className="glass tile interactive" href={`#/customers/${c.sageId}`} style={{ display: "block", padding: 18 }}>
               <div className="tile-label"><I.users />Customer</div>

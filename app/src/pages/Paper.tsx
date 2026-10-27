@@ -11,7 +11,7 @@ type Props = {
 const q = (s: string) => (Number(s) % 1 === 0 ? String(Number(s)) : s);
 
 export default function Paper(p: Props) {
-  const co = data.companies[0];
+  const co = data.companies.find((c) => c.id === data.companyId) ?? data.companies[0];
   const c = p.customerSageId ? customersById.get(p.customerSageId) : undefined;
   const addr = c?.postalAddress ?? c?.deliveryAddress ?? [];
   const anyDiscount = p.lines.some((l) => Number(l.discountPercent) > 0);
@@ -25,7 +25,7 @@ export default function Paper(p: Props) {
         </div>
         <div>
           <div className="p-title">{p.kind === "invoice" ? (p.taxCents > 0 ? "Tax Invoice" : "Invoice") : "Quotation"}</div>
-          <div className="p-muted" style={{ textAlign: "right" }}>{p.number}{p.draft ? " · draft" : ""}</div>
+          <div className="p-muted" style={{ textAlign: "right" }}>{p.draft ? "Draft" : p.number}</div>
         </div>
       </div>
       <div className="p-top" style={{ marginTop: 22 }}>

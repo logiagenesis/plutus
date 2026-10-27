@@ -348,3 +348,14 @@ table.grid { width: 100%; border-collapse: collapse; }
   .hide-xs { display: none; }
   .grid th, .grid td { padding: 11px 12px; }
 }
+
+/* Loading skeletons */
+.skel { border-radius: 8px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.08), rgba(255,255,255,.04)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+.skel-tile { min-height: 168px; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+.err { color: var(--bad); font-size: 12.5px; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; padding: 22px; }
+.form-grid .full { grid-column: 1 / -1; }
+@media (max-width: 640px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
+.progress { height: 8px; border-radius: 99px; background: rgba(255,255,255,.06); overflow: hidden; }
+.progress > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width .2s var(--ease); }

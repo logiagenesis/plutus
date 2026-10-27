@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { data, type Doc } from "./data";
+import { data, loadData, ApiError } from "./data";
 import { I, Toast, useTileLight } from "./ui";
 import Home from "./pages/Home";
 import { DocList, DocView } from "./pages/Documents";
@@ -8,35 +8,39 @@ import { CustomerList, CustomerView } from "./pages/Customers";
 import RecurringPage from "./pages/Recurring";
 import Items from "./pages/Items";
 import { Banking, Settings, NotSetUp } from "./pages/Other";
+import { CustomerForm, ItemForm } from "./pages/Forms";
+import ImportPage from "./pages/Import";
 
 // ── Router: in-memory, so it works inside the private preview frame (which only passes plain #names).
 // Links keep href="#/path" for readability; a single click handler turns them into route changes.
-let current = "/";
+const fromHash = () => (location.hash.startsWith("#/") ? location.hash.slice(1) : "/");
+let current = fromHash();
 const listeners = new Set<() => void>();
 export const routeQuery = () => new URLSearchParams(current.split("?")[1] ?? "");
-export const go = (path: string) => { current = path; listeners.forEach((l) => l()); window.scrollTo(0, 0); };
+export const go = (path: string, replace = false) => {
+  current = path;
+  try { if (replace) history.replaceState(null, "", "#" + path); else history.pushState(null, "", "#" + path); } catch { /* preview frame: in-memory only */ }
+  listeners.forEach((l) => l()); window.scrollTo(0, 0);
+};
 export function useRoute() {
   const [path, setPath] = useState(current);
   useEffect(() => {
     const on = () => setPath(current);
-    listeners.add(on);
+    const pop = () => { current = fromHash(); on(); };
+    listeners.add(on); addEventListener("popstate", pop);
     const click = (e: MouseEvent) => {
       const a = (e.target as HTMLElement).closest?.("a[href^='#/']") as HTMLAnchorElement | null;
       if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey) return;
       e.preventDefault(); go(a.getAttribute("href")!.slice(1));
     };
     document.addEventListener("click", click);
-    return () => { listeners.delete(on); document.removeEventListener("click", click); };
+    return () => { listeners.delete(on); removeEventListener("popstate", pop); document.removeEventListener("click", click); };
   }, []);
   return path.split("?")[0].split("/").filter(Boolean);
 }
 
-// ── App state: active company + documents created in this session ──
-export type Draft = Doc & { kind: "invoice" | "quote"; companyId: string; status: "draft"; message: string | null };
-type Ctx = {
-  companyId: string; setCompanyId: (id: string) => void;
-  drafts: Draft[]; saveDraft: (d: Draft) => void; notify: (t: string) => void;
-};
+// ── App state: active company; data lives in the store (src/data.ts) and reloads after each change ──
+type Ctx = { companyId: string; setCompanyId: (id: string) => void; reload: () => Promise<void>; notify: (t: string) => void; rev: number };
 const AppCtx = createContext<Ctx>(null as unknown as Ctx);
 export const useApp = () => useContext(AppCtx);
 
@@ -47,7 +51,7 @@ const NAV = [
   { path: "/customers", label: "Customers", icon: I.users },
   { path: "/recurring", label: "Recurring", icon: I.repeat },
   { path: "/items", label: "Items", icon: I.box },
-  { path: "/banking", label: "Bank", icon: I.bank, soon: "Next" },
+  { path: "/banking", label: "Bank", icon: I.bank, soon: "Soon" },
   { path: "/settings", label: "Settings", icon: I.cog },
 ];
 const COMPANY_STYLE: Record<string, string> = {
@@ -59,7 +63,7 @@ const initials = (n: string) => n.split(/[\s-]+/).filter(Boolean).slice(0, 2).ma
 function CompanySwitch() {
   const { companyId, setCompanyId } = useApp();
   const [open, setOpen] = useState(false);
-  const co = data.companies.find((c) => c.id === companyId)!;
+  const co = data.companies.find((c) => c.id === companyId) ?? { id: companyId, displayName: companyId === "logi-ink" ? "Logi-Ink (Pty) Ltd" : "Logia Services (Pty) Ltd", setUp: true };
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent | KeyboardEvent) => { if (e instanceof KeyboardEvent ? e.key === "Escape" : !(e.target as HTMLElement).closest(".co-switch")) setOpen(false); };
@@ -83,7 +87,7 @@ function CompanySwitch() {
               <span className="co-dot" style={{ background: COMPANY_STYLE[c.id] }}>{initials(c.displayName.replace(/\(Pty\) Ltd/, ""))}</span>
               <span style={{ flex: 1 }}>
                 <span className="co-name" style={{ display: "block" }}>{c.displayName}</span>
-                <span className="co-meta">{c.id === "logi-ink" ? "Not set up yet" : "Imported from Sage"}</span>
+                <span className="co-meta">{c.setUp ? "Ready" : "Not set up yet"}</span>
               </span>
               {c.id === companyId && <I.check width={16} height={16} style={{ color: "var(--accent)" }} />}
             </button>
@@ -108,7 +112,7 @@ function Shell({ children, active }: { children: ReactNode; active: string }) {
             </a>
           ))}
         </nav>
-        <div className="rail-foot">Logi-Ink internal · prototype<br />Sage data as at {data.sourceExtractedAt.slice(0, 10)}</div>
+        <div className="rail-foot">Logi-Ink internal<br />Saved to your Cloudflare database</div>
       </aside>
       <header className="topbar">
         <div className="wordmark" style={{ padding: 0 }}>A<b>666</b></div>
@@ -142,29 +146,59 @@ function More() {
   );
 }
 
+function Loading() {
+  return (
+    <div className="page" aria-busy="true">
+      <div className="page-head"><div><div className="skel" style={{ width: 280, height: 34 }} /><div className="skel" style={{ width: 180, height: 14, marginTop: 10 }} /></div></div>
+      <div className="tiles">{[7, 5, 4, 4, 4].map((n, i) => <div key={i} className={`glass tile span-${n} skel-tile`} />)}</div>
+    </div>
+  );
+}
+
 export default function App() {
   useTileLight();
   const route = useRoute();
-  const [companyId, setCompanyId] = useState("logia-services");
-  const [drafts, setDrafts] = useState<Draft[]>([]);
+  const [companyId, setCompanyIdState] = useState(() => { try { return localStorage.getItem("a666.company") || "logia-services"; } catch { return "logia-services"; } });
+  const [state, setState] = useState<"loading" | "ready" | { error: string; status: number }>("loading");
+  const [rev, setRev] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
-  const saveDraft = useCallback((d: Draft) => setDrafts((all) => [d, ...all.filter((x) => x.number !== d.number)]), []);
-  const ctx = useMemo(() => ({ companyId, setCompanyId, drafts, saveDraft, notify: setToast }), [companyId, drafts, saveDraft]);
 
-  const [a, b] = route;
+  const reload = useCallback(async () => {
+    try { await loadData(companyId); setState("ready"); setRev((r) => r + 1); }
+    catch (e) { setState({ error: e instanceof Error ? e.message : String(e), status: e instanceof ApiError ? e.status : 0 }); }
+  }, [companyId]);
+  useEffect(() => { setState("loading"); reload(); }, [reload]);
+  const setCompanyId = useCallback((id: string) => { try { localStorage.setItem("a666.company", id); } catch { /* ignore */ } setCompanyIdState(id); }, []);
+  const ctx = useMemo(() => ({ companyId, setCompanyId, reload, notify: setToast, rev }), [companyId, setCompanyId, reload, rev]);
+
+  const [a, b, c] = route;
+  const co = data.companies.find((x) => x.id === companyId);
   let page: ReactNode;
-  if (companyId === "logi-ink" && !["settings", "more"].includes(a ?? "")) page = <NotSetUp />;
+  if (state === "loading") page = <Loading />;
+  else if (state !== "ready") page = (
+    <div className="page"><div className="notice" style={{ maxWidth: 680 }}><I.alert /><div>
+      <strong>{state.status === 503 ? "Login protection isn’t switched on yet" : "Couldn’t load your data"}</strong>
+      <p>{state.error}</p>
+      <button className="btn small" style={{ marginTop: 10 }} onClick={() => { setState("loading"); reload(); }}>Try again</button>
+    </div></div></div>
+  );
+  else if (co && !co.setUp && !["settings", "more"].includes(a ?? "")) page = <NotSetUp />;
   else if (!a) page = <Home />;
-  else if (a === "invoices" && b === "new") page = <Editor kind="invoice" key="new-inv" />;
-  else if (a === "quotes" && b === "new") page = <Editor kind="quote" key="new-quo" />;
+  else if ((a === "invoices" || a === "quotes") && b === "new") page = <Editor kind={a === "invoices" ? "invoice" : "quote"} key={"new" + a} />;
+  else if ((a === "invoices" || a === "quotes") && b && c === "edit") page = <Editor kind={a === "invoices" ? "invoice" : "quote"} editId={Number(b)} key={"edit" + b} />;
   else if ((a === "invoices" || a === "quotes") && b) page = <DocView kind={a === "invoices" ? "invoice" : "quote"} id={b} key={a + b} />;
   else if (a === "invoices") page = <DocList kind="invoice" key="li" />;
   else if (a === "quotes") page = <DocList kind="quote" key="lq" />;
+  else if (a === "customers" && b === "new") page = <CustomerForm key="cn" />;
+  else if (a === "customers" && b && c === "edit") page = <CustomerForm id={Number(b)} key={"ce" + b} />;
   else if (a === "customers" && b) page = <CustomerView id={Number(b)} key={b} />;
   else if (a === "customers") page = <CustomerList />;
   else if (a === "recurring") page = <RecurringPage />;
+  else if (a === "items" && b === "new") page = <ItemForm key="in" />;
+  else if (a === "items" && b) page = <ItemForm id={Number(b)} key={"ie" + b} />;
   else if (a === "items") page = <Items />;
   else if (a === "banking") page = <Banking />;
+  else if (a === "settings" && b === "import") page = <ImportPage />;
   else if (a === "settings") page = <Settings />;
   else if (a === "more") page = <More />;
   else page = <div className="page"><h1>Page not found</h1><p className="sub"><a href="#/">Go to Home</a></p></div>;

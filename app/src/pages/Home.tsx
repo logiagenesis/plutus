@@ -10,7 +10,7 @@ function greeting() {
 }
 
 export default function Home() {
-  const { drafts } = useApp();
+  useApp();
   const today = todayISO();
   const month = today.slice(0, 7);
   const year = today.slice(0, 4);
@@ -22,25 +22,24 @@ export default function Home() {
     return { date: first, batch, total: batch.reduce((a, x) => a + x.r.totalCents, 0) };
   }, [today]);
 
-  const thisMonth = invoices.filter((d) => d.date.startsWith(month));
-  const thisYear = invoices.filter((d) => d.date.startsWith(year));
+  const issued = invoices.filter((d) => d.status === "issued");
+  const thisMonth = issued.filter((d) => d.date.startsWith(month));
+  const thisYear = issued.filter((d) => d.date.startsWith(year));
   const waiting = quotes.filter((q) => q.sageStatus === "Pending");
   const unchecked = invoices.filter((d) => invoiceStatus(d).label === "Not checked");
   const sum = (ds: { totalCents: number }[]) => ds.reduce((a, d) => a + d.totalCents, 0);
   const p = run.date ? dateParts(run.date) : null;
 
-  const recent = [
-    ...drafts.map((d) => ({ kind: d.kind, d, draft: true })),
-    ...invoices.slice(0, 8).map((d) => ({ kind: "invoice" as const, d, draft: false })),
-    ...quotes.slice(0, 4).map((d) => ({ kind: "quote" as const, d, draft: false })),
-  ].sort((a, b) => (a.draft ? -1 : b.draft ? 1 : b.d.date.localeCompare(a.d.date) || b.d.number.localeCompare(a.d.number))).slice(0, 8);
+  const recent = [...invoices.slice(0, 8), ...quotes.slice(0, 4)]
+    .sort((a, b) => (a.status === "draft" ? -1 : b.status === "draft" ? 1 : b.date.localeCompare(a.date) || b.number.localeCompare(a.number))).slice(0, 8);
+  const drafts = [...invoices, ...quotes].filter((d) => d.status === "draft");
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1 className="greet">{greeting()}, Dennis</h1>
-          <p className="sub">Logia Services · {fmtDate(today)}</p>
+          <p className="sub">{data.companies.find((c) => c.id === data.companyId)?.displayName.replace(" (Pty) Ltd", "")} · {fmtDate(today)}{drafts.length > 0 && <> · <a href="#/invoices" style={{ color: "var(--accent)" }}>{drafts.length} draft{drafts.length > 1 ? "s" : ""} waiting</a></>}</p>
         </div>
         <div className="toolbar">
           <a className="btn" href="#/quotes/new"><I.plus />New quote</a>
@@ -100,11 +99,12 @@ export default function Home() {
             <table className="grid">
               <thead><tr><th>Document</th><th>Customer</th><th className="hide-xs">Date</th><th className="r">Amount</th><th className="hide-sm">Status</th></tr></thead>
               <tbody>
-                {recent.map(({ kind, d, draft }) => {
-                  const st = draft ? { label: "Draft", tone: "info" as const } : kind === "invoice" ? invoiceStatus(d) : quoteStatus(d);
-                  const href = `/${kind === "invoice" ? "invoices" : "quotes"}/${draft ? d.number : d.sageId}`;
+                {recent.map((d) => {
+                  const kind = d.kind;
+                  const st = kind === "invoice" ? invoiceStatus(d) : quoteStatus(d);
+                  const href = `/${kind === "invoice" ? "invoices" : "quotes"}/${d.sageId}`;
                   return (
-                    <tr key={kind + d.number} className="row" tabIndex={0} onClick={() => go(href)} onKeyDown={(e) => e.key === "Enter" && go(href)}>
+                    <tr key={d.sageId} className="row" tabIndex={0} onClick={() => go(href)} onKeyDown={(e) => e.key === "Enter" && go(href)}>
                       <td><div className="strong">{d.number}</div><div className="cell-sub">{kind === "invoice" ? "Invoice" : "Quote"}</div></td>
                       <td>{customerName(d.customerSageId, d.customerName)}</td>
                       <td className="hide-xs muted">{fmtDate(d.date)}</td>

@@ -29,22 +29,24 @@ export function Banking() {
 
 export function Settings() {
   const { companyId } = useApp();
-  const co = data.companies.find((c) => c.id === companyId)!;
+  const co = data.companies.find((c) => c.id === companyId) ?? data.companies[0];
   const rows: [string, string | undefined | null][] = [
     ["Company name", co.displayName], ["Registration number", co.registrationNumber], ["Email", co.email],
     ["Telephone", co.telephone], ["Address", co.address?.join(", ")], ["VAT number", null],
   ];
+  const seq = (k: string) => { const s = data.sequences.find((x) => x.kind === k); return s ? s.prefix + String(s.next_value).padStart(s.width, "0") : "—"; };
   return (
     <div className="page">
       <div className="page-head"><div><h1>Settings</h1><p className="sub">{co.displayName}</p></div></div>
       <div className="detail">
         <section className="glass">
-          <div className="panel-head"><h2>Company details</h2><span className="faint" style={{ fontSize: 13 }}>From Sage</span></div>
+          <div className="panel-head"><h2>Company details</h2><span className="faint" style={{ fontSize: 13 }}>Editing comes next</span></div>
           <dl className="kv">{rows.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{v ?? <span style={{ color: "var(--warn)" }}>Not set — please confirm</span>}</dd></Fragment>)}</dl>
         </section>
         <div className="stack">
           <div className="notice"><I.alert /><div><strong>Open questions</strong><p>Is Logia Services VAT-registered? Sage has no VAT number, and no invoice has charged VAT since September 2023.</p></div></div>
-          <div className="notice info"><I.info /><div><strong>Numbering</strong><p>New invoices continue from Sage: the next invoice is INV00006946, the next quote QUO001302.</p></div></div>
+          <div className="notice info"><I.info /><div><strong>Numbering</strong><p>The next invoice will be {seq("invoice")} and the next quote {seq("quote")}.</p></div></div>
+          <a className="glass tile interactive" href="#/settings/import" style={{ display: "block", padding: 18 }}><div className="tile-label"><I.copy />Import from Sage</div><div className="muted" style={{ marginTop: 6 }}>Load customers, items, invoices and quotes from the Sage export file.</div></a>
         </div>
       </div>
     </div>

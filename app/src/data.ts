@@ -1,6 +1,5 @@
-// Loads the company dataset. The real Logia Services data (imported from Sage) lives in
-// src/data/company-data.json, which is git-ignored and never committed.
-import raw from "./data/company-data.json";
+// Data store: loaded from the Accounting666 API (Cloudflare D1) and kept in memory.
+// Components read the exported collections; after any change the store reloads and the app re-renders.
 
 export type Line = {
   description: string; comments: string | null; itemSageId: number | null; unit: string | null;
@@ -8,43 +7,82 @@ export type Line = {
   exclusiveCents: number; taxRate: string; taxCents: number; totalCents: number;
 };
 export type Doc = {
-  sageId: number; number: string; customerSageId: number; customerName?: string; date: string;
+  sageId: number; // internal document id (kept name for compatibility)
+  kind: "invoice" | "quote" | "credit_note";
+  status: "draft" | "issued" | "void";
+  number: string; customerSageId: number; customerName?: string; date: string;
   dueDate?: string | null; expiryDate?: string | null; reference: string | null;
   discountCents: number; exclusiveCents: number; taxCents: number; totalCents: number;
   amountDueCents: number | null; sageStatus: string | null; fromDocument: string | null; lines: Line[];
+  firstLine?: string | null; lineCount?: number; version: number; message?: string | null; vat?: boolean;
 };
 export type Recurring = Doc & { frequency: string; startDate: string; lastRunDate: string | null; active: boolean; message: string | null };
 export type Customer = {
   sageId: number; name: string; category: string | null; contactName: string | null; email: string | null;
   telephone: string | null; mobile: string | null; vatNumber: string | null;
-  postalAddress: string[] | null; deliveryAddress: string[] | null; active: boolean; sageBalanceCents: number;
+  postalAddress: string[] | null; deliveryAddress: string[] | null; active: boolean; sageBalanceCents: number | null; version: number;
 };
-export type Item = { sageId: number; code: string | null; description: string; category: string | null; unit: string | null; priceExclCents: number; salesTaxSageTypeId: number; active: boolean };
-export type Company = { id: string; displayName: string; registeredName?: string; registrationNumber?: string; email?: string; telephone?: string; address?: string[] | null; note?: string };
+export type Item = { sageId: number; code: string | null; description: string; category: string | null; unit: string | null; priceExclCents: number; active: boolean; version: number };
+export type Company = { id: string; displayName: string; registeredName?: string | null; registrationNumber?: string | null; email?: string | null; telephone?: string | null; address?: string[] | null; setUp: boolean; defaultMessage?: string | null };
 
-type Data = {
-  sourceExtractedAt: string; companies: Company[]; customers: Customer[]; items: Item[];
-  recurring: Recurring[]; invoices: Doc[]; quotes: Doc[]; creditNotes: Doc[]; invoiceMessage: string | null;
-};
-export const data = raw as unknown as Data;
+type Data = { companyId: string; companies: Company[]; customers: Customer[]; items: Item[]; recurring: Recurring[]; documents: Doc[]; invoiceMessage: string | null; sequences: { kind: string; prefix: string; width: number; next_value: number }[] };
 
-export const customersById = new Map(data.customers.map((c) => [c.sageId, c]));
-export const itemsById = new Map(data.items.map((i) => [i.sageId, i]));
-export const customerName = (id: number, fallback?: string) => customersById.get(id)?.name ?? fallback ?? "Unknown customer";
-
-const byDateDesc = (a: Doc, b: Doc) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.number.localeCompare(a.number));
-export const invoices = [...data.invoices].sort(byDateDesc);
-export const quotes = [...data.quotes].sort(byDateDesc);
-
-// Next numbers continue Sage's sequences.
-function nextNumber(prefix: string, docs: Doc[]) {
-  const nums = docs.map((d) => d.number).filter((n) => n.startsWith(prefix));
-  const max = nums.reduce((m, n) => Math.max(m, parseInt(n.slice(prefix.length), 10) || 0), 0);
-  const width = Math.max(...nums.map((n) => n.length - prefix.length));
-  return prefix + String(max + 1).padStart(width, "0");
+// ── API client ──
+export class ApiError extends Error { constructor(public status: number, msg: string) { super(msg); } }
+export async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  let r: Response;
+  try {
+    r = await fetch(`/api/${path}`, { method: init?.method ?? "GET", headers: init?.body !== undefined ? { "content-type": "application/json" } : undefined, body: init?.body !== undefined ? JSON.stringify(init.body) : undefined, credentials: "same-origin" });
+  } catch {
+    throw new ApiError(0, "Can't reach the server. Check your internet connection and try again.");
+  }
+  const text = await r.text();
+  let j: any = null; try { j = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
+  if (!r.ok) throw new ApiError(r.status, j?.error ?? (r.status === 401 || r.status === 403 ? "Your sign-in has expired. Reload the page to sign in again." : `Server error (${r.status}).`));
+  return j as T;
 }
-export const nextInvoiceNumber = () => nextNumber("INV", data.invoices);
-export const nextQuoteNumber = () => nextNumber("QUO", data.quotes);
+
+const parseAddr = (s: string | null): string[] | null => { if (!s) return null; try { const a = JSON.parse(s); return Array.isArray(a) ? a : null; } catch { return null; } };
+const mapLine = (l: any): Line => ({ description: l.description, comments: l.comments, itemSageId: l.item_id, unit: l.unit, quantity: l.quantity, unitPriceExclCents: l.unit_price_excl_cents, discountPercent: l.discount_percent, exclusiveCents: l.exclusive_cents, taxRate: l.tax_rate, taxCents: l.tax_cents, totalCents: l.total_cents });
+export const mapDoc = (d: any): Doc => ({
+  sageId: d.id, kind: d.kind, status: d.status, number: d.number ?? "Draft", customerSageId: d.customer_id, date: d.date, dueDate: d.due_date, expiryDate: d.kind === "quote" ? d.due_date : null,
+  reference: d.reference, discountCents: d.discount_cents ?? 0, exclusiveCents: d.exclusive_cents ?? 0, taxCents: d.tax_cents, totalCents: d.total_cents, amountDueCents: d.sage_amount_due_cents ?? null,
+  sageStatus: d.sage_status, fromDocument: d.from_number, lines: Array.isArray(d.lines) ? d.lines.map(mapLine) : [], firstLine: d.first_line, lineCount: d.line_count, version: d.version,
+  message: d.message, vat: d.vat_rate ? d.vat_rate !== "0" : (d.tax_cents ?? 0) > 0,
+});
+
+// Mutable store (module-level so existing selectors keep working).
+export let data: Data = { companyId: "logia-services", companies: [], customers: [], items: [], recurring: [], documents: [], invoiceMessage: null, sequences: [] };
+export let customersById = new Map<number, Customer>();
+export let itemsById = new Map<number, Item>();
+export let invoices: Doc[] = [];
+export let quotes: Doc[] = [];
+
+export async function loadData(companyId: string) {
+  const b = await api<any>(`bootstrap?company=${encodeURIComponent(companyId)}`);
+  const companies: Company[] = b.companies.map((c: any) => ({ id: c.id, displayName: c.display_name, registeredName: c.registered_name, registrationNumber: c.registration_number, email: c.email, telephone: c.telephone, address: parseAddr(c.address_json), setUp: !!c.set_up, defaultMessage: c.default_message }));
+  const customers: Customer[] = b.customers.map((c: any) => ({ sageId: c.id, name: c.name, category: c.category, contactName: c.contact_name, email: c.email, telephone: c.telephone, mobile: c.mobile, vatNumber: c.vat_number, postalAddress: parseAddr(c.postal_address_json), deliveryAddress: parseAddr(c.delivery_address_json), active: !!c.active, sageBalanceCents: c.sage_balance_cents, version: c.version }));
+  const items: Item[] = b.items.map((i: any) => ({ sageId: i.id, code: i.code, description: i.description, category: i.category, unit: i.unit, priceExclCents: i.price_excl_cents, active: !!i.active, version: i.version }));
+  const linesBy = new Map<number, Line[]>();
+  for (const l of b.recurringLines) { const a = linesBy.get(l.template_id) ?? []; a.push(mapLine(l)); linesBy.set(l.template_id, a); }
+  const recurring: Recurring[] = b.recurring.map((r: any) => ({
+    ...mapDoc({ ...r, kind: "invoice", status: "issued", number: r.sage_number, due_date: null, sage_status: null, from_number: null }),
+    lines: linesBy.get(r.id) ?? [], frequency: r.frequency, startDate: r.start_date, lastRunDate: r.last_run_date, active: !!r.active, message: r.message,
+  }));
+  const documents: Doc[] = b.documents.map(mapDoc);
+  const co = companies.find((c) => c.id === companyId);
+  data = { companyId, companies, customers, items, recurring, documents, invoiceMessage: co?.defaultMessage ?? null, sequences: b.sequences };
+  customersById = new Map(customers.map((c) => [c.sageId, c]));
+  itemsById = new Map(items.map((i) => [i.sageId, i]));
+  invoices = documents.filter((d) => d.kind === "invoice");
+  quotes = documents.filter((d) => d.kind === "quote");
+}
+
+export const customerName = (id: number, fallback?: string) => customersById.get(id)?.name ?? fallback ?? "Unknown customer";
+export function nextNumber(kind: "invoice" | "quote") {
+  const s = data.sequences.find((x) => x.kind === kind);
+  return s ? s.prefix + String(s.next_value).padStart(s.width, "0") : "";
+}
 
 // ── Dates ──
 export const todayISO = () => {
@@ -64,12 +102,6 @@ export function dateParts(iso: string) {
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   return { y, month: MONTHS_LONG[m - 1], monthShort: MONTHS[m - 1], d, weekday: DAYS[dow] };
 }
-export function addDays(iso: string, n: number) {
-  const [y, m, d] = iso.split("-").map(Number);
-  const t = new Date(Date.UTC(y, m - 1, d + n));
-  return t.toISOString().slice(0, 10);
-}
-// Add months, clamping to month end (31 Jan + 1 month → 28/29 Feb).
 function addMonths(iso: string, n: number, day: number) {
   const [y, m] = iso.split("-").map(Number);
   const total = (y * 12 + (m - 1)) + n;
@@ -81,20 +113,22 @@ export function nextRun(r: Recurring): string | null {
   if (!r.active) return null;
   const day = Number(r.startDate.slice(8, 10));
   if (!r.lastRunDate) return r.startDate;
-  const step = r.frequency === "annually" ? 12 : 1;
-  return addMonths(r.lastRunDate, step, day);
+  return addMonths(r.lastRunDate, r.frequency === "annually" ? 12 : 1, day);
 }
 
 // ── Plain-language statuses ──
 export type Tone = "ok" | "warn" | "bad" | "info" | "plain";
 export function invoiceStatus(d: Doc): { label: string; tone: Tone } {
+  if (d.status === "draft") return { label: "Draft", tone: "info" };
   if (d.sageStatus === "Paid") return { label: "Paid", tone: "ok" };
   if (d.sageStatus === "Partially Paid") return { label: "Part paid", tone: "info" };
   return { label: "Not checked", tone: "plain" };
 }
 export function quoteStatus(d: Doc): { label: string; tone: Tone } {
+  if (d.status === "draft") return { label: "Draft", tone: "info" };
   if (d.sageStatus === "Invoiced") return { label: "Accepted", tone: "ok" };
   if (d.sageStatus === "Pending") return { label: "Waiting for customer", tone: "info" };
   if (d.sageStatus === "Expired") return { label: "Expired", tone: "plain" };
-  return { label: d.sageStatus ?? "—", tone: "plain" };
+  if (!d.sageStatus) return { label: "Sent", tone: "info" };
+  return { label: d.sageStatus, tone: "plain" };
 }
