@@ -37,3 +37,6 @@ Settled: the source inventory was read; the repository initially held only READM
 Proposed: architecture, detailed states, acceptance gates, implementation order and visual tokens.
 Unresolved: legal entity/VAT setup, real bank formats and volumes, access list, domain and email sender, opening balances and migration scope.
 No claim is made that 20 competitors, 20 training websites or 25 design websites were fully audited. Those numbers appear in contextual source briefs. This pack uses focused current provider and design evidence and does not invent completed research.
+
+## Latest account check
+See [09_CLOUDFLARE_ACCOUNT_CHECK.md](https://github.com/logiagenesis/accounting666/blob/main/docs/09_CLOUDFLARE_ACCOUNT_CHECK.md) for the verified Cloudflare inventory, billing-access limitation and documentation review. A matching copy is saved in Drive under 03_Development/02_Architecture_and_Hosting. The original verification manifest covers its named historical commit, not later updates.
