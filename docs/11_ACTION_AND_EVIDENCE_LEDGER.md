@@ -82,6 +82,8 @@ This ledger and the conversation record cover available current-session material
 - Sage data extraction through the built-in browser: read-only GET/list calls only. Export SHA-256 bc9a54a8…7dc6 matched before and after transfer. Normaliser output was reproduced twice byte-identically. Totals and line arithmetic were checked programmatically (see 14_SAGE_IMPORT_REPORT.md). Review workbook recalculated with 0 formula errors.
 - Drive: created 04_Data/2026-10-27_Sage_Export with the raw export, import JSON and review workbook (written through the local synced shared-drive folder).
 - GitHub: normaliser script and report only. Real customer data is excluded by .gitignore.
+- Fix: quantities like 20 had been written as "2E+1" by the normaliser. Corrected; the import file was re-issued as v02 in Drive (v01 kept).
+- Milestone 1 prototype (commit 1060c0f): the money engine reproduces all 3,100 Sage lines; Playwright navigation and invoice flow pass; screenshots and a standalone HTML are in Drive 03_Development/04_Prototype/2026-10-27_v01; a private Claude page was published.
 
 ## Ongoing documentation rule
 For every substantive project round, preserve requests, decisions, sources, code/config changes, verification results, failures, unresolved work and artifact locations in GitHub and the organised Drive project. Include reviewable screenshots/test evidence when those artifacts exist. Never claim an unsaved or unverified copy exists.
