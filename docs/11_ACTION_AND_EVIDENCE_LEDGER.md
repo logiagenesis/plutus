@@ -76,5 +76,12 @@ These failures were not presented as successful work. No failed action is eviden
 Implementation/prototype, runtime compatibility and CPU/PDF/import benchmark, auth and permissions tests, financial concurrency tests, restore exercise, real business setup, migration reconciliation, sender/domain setup and production hosting decision.
 This ledger and the conversation record cover available current-session material. They do not fabricate missing historical chats or pretend that design/application tests have already run.
 
+## 27 October 2026 — continuation session
+- Gmail read-only search of Sage mail; findings in 13_SAGE_INBOX_FINDINGS.md.
+- app/ scaffold committed (d0f3a0f). Requirements updated for two invoicing companies (73193c6).
+- Sage data extraction through the built-in browser: read-only GET/list calls only. Export SHA-256 bc9a54a8…7dc6 matched before and after transfer. Normaliser output was reproduced twice byte-identically. Totals and line arithmetic were checked programmatically (see 14_SAGE_IMPORT_REPORT.md). Review workbook recalculated with 0 formula errors.
+- Drive: created 04_Data/2026-10-27_Sage_Export with the raw export, import JSON and review workbook (written through the local synced shared-drive folder).
+- GitHub: normaliser script and report only. Real customer data is excluded by .gitignore.
+
 ## Ongoing documentation rule
 For every substantive project round, preserve requests, decisions, sources, code/config changes, verification results, failures, unresolved work and artifact locations in GitHub and the organised Drive project. Include reviewable screenshots/test evidence when those artifacts exist. Never claim an unsaved or unverified copy exists.

@@ -67,6 +67,7 @@ No later user message in this record approves invented business details, a paid 
 2. Dennis said "Lets start". Milestone 1 (design prototype with fictional data) was started; the app/ scaffold (Vite, React, TypeScript, pinned lockfile) was committed. Screens not yet built.
 3. Dennis asked for Sage emails in his inbox. Findings saved as 13_SAGE_INBOX_FINDINGS.md (GitHub and Drive 00_Project_Control).
 4. Decision: Accounting666 invoices as both Logia Services (Pty) Ltd and Logi-Ink (Pty) Ltd. Recorded in 02_PRODUCT_REQUIREMENTS.md.
+5. Dennis asked for all current clients and line items to be imported. He signed in to Sage in the browser; Claude read the data (no changes in Sage) and, with his permission, downloaded it. 112 customers, 212 items, 16 recurring templates, 625 invoices, 317 quotes and 3 credit notes were normalised. Data is in Drive 04_Data only; the report is 14_SAGE_IMPORT_REPORT.md.
 
 ## Record boundaries
 Internal reasoning, credentials, signed download URLs and unrelated private account data are excluded.
