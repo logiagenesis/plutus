@@ -62,6 +62,12 @@ The audit files are contextual. Cloudflare is the proposed hosting direction, no
 Actual VAT/legal details, bank CSV samples, invoice sequence, users, domain/sender, migration data, account plan and runtime benchmarks remain unresolved.
 No later user message in this record approves invented business details, a paid plan, production deployment or customer email sending.
 
+## 27 October 2026 — continuation session
+1. Dennis supplied the Drive index and GitHub links; Drive, GitHub and the local synced folder were checked and found consistent. No application code existed.
+2. Dennis said "Lets start". Milestone 1 (design prototype with fictional data) was started; the app/ scaffold (Vite, React, TypeScript, pinned lockfile) was committed. Screens not yet built.
+3. Dennis asked for Sage emails in his inbox. Findings saved as 13_SAGE_INBOX_FINDINGS.md (GitHub and Drive 00_Project_Control).
+4. Decision: Accounting666 invoices as both Logia Services (Pty) Ltd and Logi-Ink (Pty) Ltd. Recorded in 02_PRODUCT_REQUIREMENTS.md.
+
 ## Record boundaries
 Internal reasoning, credentials, signed download URLs and unrelated private account data are excluded.
 There is no claim to have exported unavailable old chats. The three original AI transcripts in Drive are source documents, not evidence that all their cited external research was completed.

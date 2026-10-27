@@ -39,8 +39,18 @@ Do not assume a bank's columns or date format. Show detected encoding, delimiter
 File hash prevents exact-file replay; row fingerprints only flag possible duplicates. Two legitimate same-day payments can share amount and description. Use bank transaction identifiers where present; otherwise provide an explicit review path.
 Use staged chunks and resumable batch states for large files. Reject malformed rows with reasons; never silently skip them. Treat CSV formula-like cells safely on export. Never execute uploaded content.
 
+## Decision — two invoicing companies (27 October 2026)
+Dennis confirmed Accounting666 must invoice as both "Logia Services (Pty) Ltd" and "Logi-Ink (Pty) Ltd". This replaces the earlier proposal to exclude multi-entity support.
+Design consequences:
+- Each company has its own legal details, VAT status, banking details, logo, document template, sender address and terms.
+- Each company has its own invoice, quote and credit-note number sequences. Logia Services continues its Sage sequences at cutover (see 13_SAGE_INBOX_FINDINGS.md).
+- Customers, recurring schedules, bank accounts, imports, allocations, statements and reports are scoped to one company. A receipt in one company's bank account cannot settle the other company's invoice.
+- The interface shows which company is active at all times, and every document shows its issuing company before it is issued.
+- Users may be granted access per company.
+Open inputs per company: registration number, VAT number or "not registered", bank details, logo, sender email, existing numbering (Logi-Ink), and whether one customer can be billed by both companies.
+
 ## Proposed exclusions
-Payroll, stock/inventory valuation, supplier accounting, multi-currency, multi-entity UI, live bank login/feeds, payment gateways, customer portal, AI financial decisions, tax submission and native mobile apps.
+Payroll, stock/inventory valuation, supplier accounting, multi-currency, live bank login/feeds, payment gateways, customer portal, AI financial decisions, tax submission and native mobile apps.
 These are scope-control recommendations derived from the narrow brief, not permanent prohibitions.
 
 ## Business-input register
