@@ -5,9 +5,10 @@
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "./dist", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
   "d1_databases": [
-    { "binding": "DB", "database_name": "plutus", "database_id": "d0ce91f8-0ae6-4844-99a8-846ed46caaf6", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "plutus", "database_id": "9230a0e5-1102-4ea4-813e-92867f1a3d89", "migrations_dir": "migrations" }
   ],
   "observability": { "enabled": true },
-  // Cloudflare Access application for this Worker (public identifiers, not secrets). The API verifies every request against them.
-  "vars": { "ACCESS_TEAM_DOMAIN": "https://denweb.cloudflareaccess.com", "ACCESS_AUD": "a6523774c751c064bdcef4eb33dbbc689ebfc464d6a4b206f45d117a869e03aa" }
+  // Account: dennis@logia.co.za (8cabaf8ffc36147476b494c0cc35a34e), moved 28 Oct 2026 (docs/20).
+  // RESTORE_ENABLED "1" only while the new, empty database is being restored from a backup; removed straight after.
+  "vars": { "RESTORE_ENABLED": "1" }
 }
