@@ -1,13 +1,13 @@
-# Accounting666 — conversation record
+# Plutus — conversation record
 Date: 27 October 2026 (Africa/Johannesburg).
-Scope: this Accounting666 preparation conversation, beginning with the supplied project links.
+Scope: this Plutus preparation conversation, beginning with the supplied project links.
 This record preserves the user requests verbatim below and records assistant outcomes and progress as explicitly labelled summaries. It is not a raw platform export, a verbatim record of every assistant/tool message, or an export of earlier unrelated chats. Source audit transcripts are separately preserved in references/ and the original Drive files.
 
 ## User instructions — verbatim
 ### Initial project request
 @Cloudflare @Nimble @Firebase @Context.dev @MiroMiro @Runway @Render @Vercel @Exa @GitHub @Google Drive @Documents @Cloudflare
 https://drive.google.com/drive/folders/19wJFooMd-9_11eNlf5antaifsXl4J3RL?usp=sharing
-https://github.com/logiagenesis/accounting666.git
+https://github.com/logiagenesis/plutus.git
 
 We need to take everything into consideration in this Google Drive. There is the GitHub installation. The audits have been done. The instructions are documented. The design is incredibly important, so let's put together a godlike prompt.
 
@@ -66,7 +66,7 @@ No later user message in this record approves invented business details, a paid 
 1. Dennis supplied the Drive index and GitHub links; Drive, GitHub and the local synced folder were checked and found consistent. No application code existed.
 2. Dennis said "Lets start". Milestone 1 (design prototype with fictional data) was started; the app/ scaffold (Vite, React, TypeScript, pinned lockfile) was committed. Screens not yet built.
 3. Dennis asked for Sage emails in his inbox. Findings saved as 13_SAGE_INBOX_FINDINGS.md (GitHub and Drive 00_Project_Control).
-4. Decision: Accounting666 invoices as both Logia Services (Pty) Ltd and Logi-Ink (Pty) Ltd. Recorded in 02_PRODUCT_REQUIREMENTS.md.
+4. Decision: Plutus invoices as both Logia Services (Pty) Ltd and Logi-Ink (Pty) Ltd. Recorded in 02_PRODUCT_REQUIREMENTS.md.
 5. Dennis asked for all current clients and line items to be imported. He signed in to Sage in the browser; Claude read the data (no changes in Sage) and, with his permission, downloaded it. 112 customers, 212 items, 16 recurring templates, 625 invoices, 317 quotes and 3 credit notes were normalised. Data is in Drive 04_Data only; the report is 14_SAGE_IMPORT_REPORT.md.
 6. Dennis said: start; focus on design, look and feel, high quality; ease of use is top priority; he is used to Sage, so keep it simple; he is a business owner, not an accountant. Milestone 1 prototype built on the real data and published as a private Claude page (15_MILESTONE1_PROTOTYPE.md).
 

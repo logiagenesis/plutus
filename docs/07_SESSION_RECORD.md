@@ -3,7 +3,7 @@ Date: 27 October 2026.
 This is a factual action/decision summary, not a verbatim transcript or an export of unavailable historical chats.
 
 ## Request and clarification
-Dennis supplied the Accounting666 Drive folder and GitHub repository, requested reading everything first, a full folder audit, organised preparation, a strong design-led prompt, and consideration of durable low-cost hosting.
+Dennis supplied the Plutus Drive folder and GitHub repository, requested reading everything first, a full folder audit, organised preparation, a strong design-led prompt, and consideration of durable low-cost hosting.
 Dennis then clarified: "They are just there for context, info and ideas". The pack consequently treats the prior audit content as reference, not a prescribed stack or binding feature list.
 
 ## Work recorded

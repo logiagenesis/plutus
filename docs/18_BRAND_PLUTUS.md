@@ -1,15 +1,14 @@
 # 18 — Name and logo: Plutus
 
-Date: 2026-10-28. Requested by Dennis: rename the app from Accounting666 to Plutus and add a logo.
+Date: 2026-10-28. Requested by Dennis.
 
 ## Name
-- The app is now called Plutus (after the Greek god of wealth). Browser tab: "Plutus · Logi-Ink".
-- Changed in the app: sidebar and mobile header, page title, favicon, and the wording on the Bank, Recurring and Import screens.
-- Not changed yet, on purpose (each needs a separate step):
-  - Web address https://accounting666.denweb82.workers.dev. Renaming the Cloudflare Worker changes the address, so the Cloudflare Access sign-in app must be updated at the same time.
-  - GitHub repo logiagenesis/accounting666. GitHub redirects the old name, but the Cloudflare Workers Builds link should be re-checked after a rename.
-  - Drive folder "Accounting666" and the D1 database name "accounting666".
-  - The import file format id "accounting666-import/1". It stays so the existing Sage export file still imports.
+- The app is called Plutus (after the Greek god of wealth).
+- Web address: https://plutus.denweb82.workers.dev
+- GitHub: https://github.com/logiagenesis/plutus
+- Cloudflare Worker: plutus. D1 database: plutus (id d0ce91f8-0ae6-4844-99a8-846ed46caaf6). The data was copied from the previous database on 2026-10-28 and the counts and totals were checked after the copy.
+- Drive project folder: Plutus (same folder ID as before, 19wJFooMd-9_11eNlf5antaifsXl4J3RL).
+- Import file format id: plutus-import/1. The current import file is 2026-10-27_Plutus_Import_Logia-Services_v03.json (same Sage data as v02, only the format id changed).
 
 ## Logo
 - Mark: a "P" whose bowl is a coin, in the app's cyan-to-indigo gradient, on a dark glass tile.

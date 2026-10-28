@@ -1,4 +1,4 @@
--- Accounting666 — initial schema (Cloudflare D1 / SQLite).
+-- Plutus — initial schema (Cloudflare D1 / SQLite).
 -- Money: integer cents. Quantities, discount % and tax rates: exact decimal strings.
 
 CREATE TABLE companies (

@@ -1,4 +1,4 @@
-# Accounting666 — action and evidence ledger
+# Plutus — action and evidence ledger
 Date: 27 October 2026.
 Scope: actions performed in this conversation. This is an explicit operational summary, not raw tool telemetry.
 

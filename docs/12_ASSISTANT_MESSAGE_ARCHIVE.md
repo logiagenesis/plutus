@@ -40,7 +40,7 @@ Done. **Read all five source files**, audited the repository, organised Drive, a
 
 - [Start here — complete document index](https://drive.google.com/file/d/16WhNg84-SktKxaagX_DjcOa7lRLYbZ93/view)
 - [Master build prompt](https://drive.google.com/file/d/1fUhSh0TkLHUsSkbJNbOkZGAaudFiPYSk/view)
-- [GitHub documentation](https://github.com/logiagenesis/accounting666/tree/main/docs)
+- [GitHub documentation](https://github.com/logiagenesis/plutus/tree/main/docs)
 
 The prompt treats the audits as **context and ideas**, with your reflective-black, illuminated-glass design direction central.
 
@@ -55,7 +55,7 @@ I’ll check the connected Cloudflare account and available hosting setup agains
 ## 10 — Cloudflare final
 **Cloudflare is connected.** I verified your account currently has no Workers, D1 databases or Pages projects.
 
-It’s available for the planned Accounting666 setup. Billing-plan verification is blocked by the connection’s permissions, so I cannot confirm your current plan.
+It’s available for the planned Plutus setup. Billing-plan verification is blocked by the connection’s permissions, so I cannot confirm your current plan.
 
 Nothing has been created or charged.
 

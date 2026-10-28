@@ -13,10 +13,10 @@ Date: 27 October 2026. Scope: the exact supplied Drive folder and its complete r
 Total reported source size: 55,849 bytes. All are text/plain. No PDFs, screenshots, logos, datasets, wireframes, application files or downloaded training libraries were present in the returned initial listings. A transcript mentioning a URL or a download does not establish that its target was read or saved.
 
 ## Repository
-Private repository logiagenesis/accounting666; default branch main.
+Private repository logiagenesis/plutus; default branch main.
 Initial commit: 88684324ffb610c420acfd78044042fbc5dcff4f.
 Initial tree: 7f4c70b38f92c160a372fa5b720d08692a3effe7.
-Recursive tree was not truncated and contained only README.md, whose content was "# accounting666".
+Recursive tree was not truncated and contained only README.md, whose content was "# plutus".
 There was no application, dependency manifest, database schema, deployment configuration or test suite in that tree. Repository access was verified through the connector. This does not establish any hosting integration or GitHub App installation on a hosting account.
 The local Windows workspace could not be listed in this runtime; remote Drive and GitHub reads are the evidence used here.
 

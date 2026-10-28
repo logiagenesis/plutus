@@ -158,7 +158,7 @@ function Loading() {
 export default function App() {
   useTileLight();
   const route = useRoute();
-  const [companyId, setCompanyIdState] = useState(() => { try { return localStorage.getItem("a666.company") || "logia-services"; } catch { return "logia-services"; } });
+  const [companyId, setCompanyIdState] = useState(() => { try { return localStorage.getItem("plutus.company") || "logia-services"; } catch { return "logia-services"; } });
   const [state, setState] = useState<"loading" | "ready" | { error: string; status: number }>("loading");
   const [rev, setRev] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -168,7 +168,7 @@ export default function App() {
     catch (e) { setState({ error: e instanceof Error ? e.message : String(e), status: e instanceof ApiError ? e.status : 0 }); }
   }, [companyId]);
   useEffect(() => { setState("loading"); reload(); }, [reload]);
-  const setCompanyId = useCallback((id: string) => { try { localStorage.setItem("a666.company", id); } catch { /* ignore */ } setCompanyIdState(id); }, []);
+  const setCompanyId = useCallback((id: string) => { try { localStorage.setItem("plutus.company", id); } catch { /* ignore */ } setCompanyIdState(id); }, []);
   const ctx = useMemo(() => ({ companyId, setCompanyId, reload, notify: setToast, rev }), [companyId, setCompanyId, reload, rev]);
 
   const [a, b, c] = route;

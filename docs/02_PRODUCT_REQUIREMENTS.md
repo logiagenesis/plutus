@@ -40,7 +40,7 @@ File hash prevents exact-file replay; row fingerprints only flag possible duplic
 Use staged chunks and resumable batch states for large files. Reject malformed rows with reasons; never silently skip them. Treat CSV formula-like cells safely on export. Never execute uploaded content.
 
 ## Decision — two invoicing companies (27 October 2026)
-Dennis confirmed Accounting666 must invoice as both "Logia Services (Pty) Ltd" and "Logi-Ink (Pty) Ltd". This replaces the earlier proposal to exclude multi-entity support.
+Dennis confirmed Plutus must invoice as both "Logia Services (Pty) Ltd" and "Logi-Ink (Pty) Ltd". This replaces the earlier proposal to exclude multi-entity support.
 Design consequences:
 - Each company has its own legal details, VAT status, banking details, logo, document template, sender address and terms.
 - Each company has its own invoice, quote and credit-note number sequences. Logia Services continues its Sage sequences at cutover (see 13_SAGE_INBOX_FINDINGS.md).

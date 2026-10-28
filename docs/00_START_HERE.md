@@ -1,16 +1,16 @@
-# Accounting666 — current record, 28 October 2026
+# Plutus — current record, 28 October 2026
 
-Application source now exists in GitHub. The Cloudflare account check in this conversation verified Worker accounting666 and its enabled workers.dev subdomain: https://accounting666.denweb82.workers.dev . Application workflows were not retested during this documentation repair.
+Application source now exists in GitHub. The Cloudflare account check in this conversation verified Worker plutus and its enabled workers.dev subdomain: https://plutus.denweb82.workers.dev . Application workflows were not retested during this documentation repair.
 
 The statement below that the application was not built or deployed describes the earlier preparation snapshot and is superseded. The old empty Cloudflare inventory is also historical, not current status. Billing plan remains unverified.
 
-[Full archive inventory](https://github.com/logiagenesis/accounting666/blob/main/docs/17_DRIVE_FILE_INDEX.md) | [Reconciliation and gaps](https://github.com/logiagenesis/accounting666/blob/main/docs/16_ARCHIVE_RECONCILIATION_2026-10-28.md)
+[Full archive inventory](https://github.com/logiagenesis/plutus/blob/main/docs/17_DRIVE_FILE_INDEX.md) | [Reconciliation and gaps](https://github.com/logiagenesis/plutus/blob/main/docs/16_ARCHIVE_RECONCILIATION_2026-10-28.md)
 
 ---
 
 ## Preserved preparation snapshot
 
-# Accounting666 — preparation pack
+# Plutus — preparation pack
 Date: 27 October 2026 (Africa/Johannesburg)
 Status: planning complete for the proposed first build; application not built or deployed.
 
@@ -27,7 +27,7 @@ Build an internal Logi-Ink quoting, invoicing, recurring billing, customer state
 
 ## Where everything belongs
 Google Drive root: https://drive.google.com/drive/folders/19wJFooMd-9_11eNlf5antaifsXl4J3RL
-GitHub: https://github.com/logiagenesis/accounting666
+GitHub: https://github.com/logiagenesis/plutus
 
 | Drive folder | Contents | GitHub equivalent |
 |---|---|---|
@@ -51,7 +51,7 @@ Unresolved: legal entity/VAT setup, real bank formats and volumes, access list, 
 No claim is made that 20 competitors, 20 training websites or 25 design websites were fully audited. Those numbers appear in contextual source briefs. This pack uses focused current provider and design evidence and does not invent completed research.
 
 ## Latest account check
-See [09_CLOUDFLARE_ACCOUNT_CHECK.md](https://github.com/logiagenesis/accounting666/blob/main/docs/09_CLOUDFLARE_ACCOUNT_CHECK.md) for the verified Cloudflare inventory, billing-access limitation and documentation review. A matching copy is saved in Drive under 03_Development/02_Architecture_and_Hosting. The original verification manifest covers its named historical commit, not later updates.
+See [09_CLOUDFLARE_ACCOUNT_CHECK.md](https://github.com/logiagenesis/plutus/blob/main/docs/09_CLOUDFLARE_ACCOUNT_CHECK.md) for the verified Cloudflare inventory, billing-access limitation and documentation review. A matching copy is saved in Drive under 03_Development/02_Architecture_and_Hosting. The original verification manifest covers its named historical commit, not later updates.
 
 ## Conversation and action records
 - [10_CONVERSATION_RECORD.md](https://drive.google.com/file/d/1ZLa90zh9YB7c7kGeFiuTkqWaQmsHVx2M/view?usp=drivesdk) — user instructions and chronological decisions.

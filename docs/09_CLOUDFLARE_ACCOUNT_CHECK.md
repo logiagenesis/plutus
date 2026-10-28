@@ -1,4 +1,4 @@
-> Update 28 October 2026: this is a historical preparation-stage check. A subsequent check verified Worker accounting666 and enabled hosting at https://accounting666.denweb82.workers.dev . Its empty-resource and unimplemented-app statements are not current status. Application functionality and billing plan are not certified by this update.
+> Update 28 October 2026: this is a historical preparation-stage check. A subsequent check verified Worker plutus and enabled hosting at https://plutus.denweb82.workers.dev . Its empty-resource and unimplemented-app statements are not current status. Application functionality and billing plan are not certified by this update.
 
 # Cloudflare account check and documentation review
 Date: 27 October 2026 (Africa/Johannesburg).
@@ -21,7 +21,7 @@ The actual account billing plan therefore remains unverified. Empty resource lis
 No hosting resources, subscriptions or billing changes were created during the check.
 
 ## Project implication
-Cloudflare remains the proposed hosting platform for Accounting666. Workers/D1 architecture, PDF/import benchmarks, identity, file storage, backup and production configuration still require implementation and validation. A plugin mention and successful connection check are not evidence of a deployed application.
+Cloudflare remains the proposed hosting platform for Plutus. Workers/D1 architecture, PDF/import benchmarks, identity, file storage, backup and production configuration still require implementation and validation. A plugin mention and successful connection check are not evidence of a deployed application.
 
 ## Documentation review performed in this turn
 Re-read the current Drive index and session record, inspected the current GitHub tree, and compared all eight existing planning documents between Drive and GitHub. All eight text comparisons matched.

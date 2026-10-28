@@ -27,7 +27,7 @@ export default function ImportPage() {
     try {
       const text = await f.text();
       const d = JSON.parse(text) as ImportFile;
-      if (d.format !== "accounting666-import/1") throw new Error("This isn’t a Plutus import file. Choose the file named …Import_Logia-Services_v02.json.");
+      if (d.format !== "plutus-import/1") throw new Error("This isn’t a Plutus import file. Choose the file named …Plutus_Import_Logia-Services_v03.json.");
       setFile({ name: f.name, text, d, sha: await sha256(text) });
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   }
@@ -80,7 +80,7 @@ export default function ImportPage() {
         <label className="field" htmlFor="imp-file">
           <span>Import file</span>
           <input id="imp-file" type="file" accept=".json,application/json" className="input" style={{ paddingTop: 8 }} onChange={(e) => pick(e.target.files?.[0])} />
-          <span className="faint" style={{ fontSize: 12.5 }}>In Drive: Accounting666 › 04_Data › 2026-10-27_Sage_Export › 2026-10-27_Accounting666_Import_Logia-Services_v02.json</span>
+          <span className="faint" style={{ fontSize: 12.5 }}>In Drive: Plutus › 04_Data › 2026-10-27_Sage_Export › 2026-10-27_Plutus_Import_Logia-Services_v03.json</span>
         </label>
         {file && (
           <div className="notice info"><I.info /><div>

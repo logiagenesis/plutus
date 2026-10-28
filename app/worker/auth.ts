@@ -2,6 +2,7 @@
 // Fails closed: if Access is not configured, the API refuses to serve any data.
 export type Env = {
   DB: D1Database;
+  OLD_DB?: D1Database;         // temporary: previous database, only while moving data across
   ASSETS: Fetcher;
   ACCESS_TEAM_DOMAIN?: string; // e.g. https://logi-ink.cloudflareaccess.com
   ACCESS_AUD?: string;         // Application Audience (AUD) tag from the Access application

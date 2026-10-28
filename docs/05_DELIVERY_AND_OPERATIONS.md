@@ -37,7 +37,7 @@ Do not claim an automated Sage importer exists until tested against real anonymi
 
 ## Documentation on every build round
 Save source changes, migration scripts, dependency lockfile, tests, decision log, change summary, screenshots and known limitations to GitHub. Mirror reviewable documentation and a versioned source/release export into the supplied Drive project with a manifest linking the Git commit.
-Suggested naming: YYYY-MM-DD_Accounting666_<Artifact>_vNN.ext. Repository documentation may keep stable names and rely on commit history.
+Suggested naming: YYYY-MM-DD_Plutus_<Artifact>_vNN.ext. Repository documentation may keep stable names and rely on commit history.
 Never mark a round complete until both copies are verified. If one destination fails, report the exact partial state.
 Future build exports belong in a dedicated Releases folder created when an actual release exists. Do not fill empty folders with misleading "done" files.
 Preserve user-visible conversation decisions and action summaries. Do not fabricate missing historical chat logs or claim a summary is verbatim history.

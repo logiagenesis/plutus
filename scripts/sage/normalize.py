@@ -1,4 +1,4 @@
-"""Normalise a Sage Business Cloud Accounting (ZA) JSON export into the Accounting666 import format.
+"""Normalise a Sage Business Cloud Accounting (ZA) JSON export into the Plutus import format.
 
 Usage: python3 normalize.py <sage_export.json> <out_dir>
 Money is converted to integer cents with exact Decimal arithmetic; the script fails if any
@@ -81,7 +81,7 @@ def main(src, out):
     co = D["company"]
     cats = {c["ID"]: c["Description"] for c in D["CustomerCategory"]}
     res = {
-        "format": "accounting666-import/1", "source": "Sage Business Cloud Accounting (ZA)",
+        "format": "plutus-import/1", "source": "Sage Business Cloud Accounting (ZA)",
         "sourceExtractedAt": D["extractedAt"], "sourceSha256": hashlib.sha256(raw).hexdigest(),
         "companies": [
             {"id": COMPANY_ID, "displayName": co["DisplayName"], "registeredName": co["RegisteredName"],
@@ -127,7 +127,7 @@ def main(src, out):
                                 "date": r["Date"][:10], "totalCents": cents(r["Total"]), "description": clean(r.get("Description")),
                                 "reference": clean(r.get("Reference"))})
     os.makedirs(out, exist_ok=True)
-    p = os.path.join(out, "accounting666_import_logia-services.json")
+    p = os.path.join(out, "plutus_import_logia-services.json")
     json.dump(res, open(p, "w"), ensure_ascii=False, indent=1)
     print(p, {k: len(v) for k, v in res.items() if isinstance(v, list)})
 

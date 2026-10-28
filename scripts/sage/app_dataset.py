@@ -1,5 +1,5 @@
 """Build the compact dataset the prototype app reads (app/src/data/company-data.json, gitignored).
-Usage: python3 app_dataset.py <accounting666_import.json> <out.json>"""
+Usage: python3 app_dataset.py <plutus_import.json> <out.json>"""
 import json, sys
 N = json.load(open(sys.argv[1]))
 def doc(d, extra=()):
