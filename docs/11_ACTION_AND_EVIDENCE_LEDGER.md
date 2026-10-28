@@ -97,5 +97,9 @@ This ledger and the conversation record cover available current-session material
 - Scheduled audit task renamed "Plutus monthly audit (22nd, before recurring run)" and its instructions updated to the new repo, folder, file names and database.
 - Not changed by Claude (needs Dennis): the previous D1 database still exists (deleting it is permanent); the Cloudflare API token used by builds is still named after the old project; this Claude project and the ChatGPT project are still named after the old project; old Git commit messages and the first conversation records in chat history still contain the old name.
 
+## 28 October 2026 — own login
+- Built Plutus's own login (19_OWN_LOGIN.md): users and sessions tables (migration 0002, applied to the live database through the Cloudflare connector), sign-in, one-time setup, sign-out, change password, lockout, audit.
+- Tested on a local copy (results in 19_OWN_LOGIN.md). Live: database tables created; first password to be set by Dennis; Cloudflare sign-in to be switched off after that.
+
 ## Ongoing documentation rule
 For every substantive project round, preserve requests, decisions, sources, code/config changes, verification results, failures, unresolved work and artifact locations in GitHub and the organised Drive project. Include reviewable screenshots/test evidence when those artifacts exist. Never claim an unsaved or unverified copy exists.

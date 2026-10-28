@@ -10,6 +10,8 @@ import Items from "./pages/Items";
 import { Banking, Settings, NotSetUp } from "./pages/Other";
 import { CustomerForm, ItemForm } from "./pages/Forms";
 import ImportPage from "./pages/Import";
+import { api } from "./data";
+import { LoginScreen, SetupScreen, NoAccess, type AuthState } from "./pages/Login";
 
 // ── Router: in-memory, so it works inside the private preview frame (which only passes plain #names).
 // Links keep href="#/path" for readability; a single click handler turns them into route changes.
@@ -40,7 +42,7 @@ export function useRoute() {
 }
 
 // ── App state: active company; data lives in the store (src/data.ts) and reloads after each change ──
-type Ctx = { companyId: string; setCompanyId: (id: string) => void; reload: () => Promise<void>; notify: (t: string) => void; rev: number };
+type Ctx = { companyId: string; setCompanyId: (id: string) => void; reload: () => Promise<void>; notify: (t: string) => void; rev: number; email: string; signOut: () => void };
 const AppCtx = createContext<Ctx>(null as unknown as Ctx);
 export const useApp = () => useContext(AppCtx);
 
@@ -99,6 +101,7 @@ function CompanySwitch() {
 }
 
 function Shell({ children, active }: { children: ReactNode; active: string }) {
+  const app = useApp();
   const cur = (p: string) => (p === "/" ? active === "" : active === p.slice(1)) ? "page" : undefined;
   return (
     <div className="shell">
@@ -112,7 +115,7 @@ function Shell({ children, active }: { children: ReactNode; active: string }) {
             </a>
           ))}
         </nav>
-        <div className="rail-foot">Logi-Ink internal<br />Saved to your Cloudflare database</div>
+        <div className="rail-foot rail-user"><span>Signed in as<br />{app.email}</span><button className="btn small ghost" onClick={app.signOut}>Sign out</button></div>
       </aside>
       <header className="topbar">
         <div className="wordmark" style={{ padding: 0 }}><img className="logo-word" src="./plutus-wordmark.png" alt="Plutus" width="104" height="15" /></div>
@@ -132,6 +135,7 @@ function Shell({ children, active }: { children: ReactNode; active: string }) {
 }
 
 function More() {
+  const app = useApp();
   return (
     <div className="page">
       <div className="page-head"><h1>More</h1></div>
@@ -141,6 +145,7 @@ function More() {
             <n.icon width={20} height={20} style={{ color: "var(--accent)" }} /><span style={{ flex: 1, fontWeight: 560 }}>{n.label}</span><I.arrow width={16} height={16} className="faint" />
           </a>
         ))}
+        <button className="btn" style={{ alignSelf: "flex-start", marginTop: 8 }} onClick={app.signOut}>Sign out ({app.email})</button>
       </div>
     </div>
   );
@@ -162,14 +167,33 @@ export default function App() {
   const [state, setState] = useState<"loading" | "ready" | { error: string; status: number }>("loading");
   const [rev, setRev] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
+  const [auth, setAuth] = useState<AuthState | null>(null);
+  const [authErr, setAuthErr] = useState<string | null>(null);
+  const checkAuth = useCallback(async () => {
+    try { setAuthErr(null); setAuth(await api<AuthState>("auth/state")); }
+    catch (e) { setAuthErr(e instanceof Error ? e.message : String(e)); }
+  }, []);
+  useEffect(() => { checkAuth(); }, [checkAuth]);
+  useEffect(() => { const h = () => checkAuth(); window.addEventListener("plutus:signed-out", h); return () => window.removeEventListener("plutus:signed-out", h); }, [checkAuth]);
+  const signOut = useCallback(async () => { try { await api("auth/logout", { method: "POST", body: {} }); } catch { /* ignore */ } setState("loading"); checkAuth(); }, [checkAuth]);
+  const signedIn = !!auth?.signedIn;
 
   const reload = useCallback(async () => {
     try { await loadData(companyId); setState("ready"); setRev((r) => r + 1); }
     catch (e) { setState({ error: e instanceof Error ? e.message : String(e), status: e instanceof ApiError ? e.status : 0 }); }
   }, [companyId]);
-  useEffect(() => { setState("loading"); reload(); }, [reload]);
+  useEffect(() => { if (signedIn) { setState("loading"); reload(); } }, [reload, signedIn]);
   const setCompanyId = useCallback((id: string) => { try { localStorage.setItem("plutus.company", id); } catch { /* ignore */ } setCompanyIdState(id); }, []);
-  const ctx = useMemo(() => ({ companyId, setCompanyId, reload, notify: setToast, rev }), [companyId, setCompanyId, reload, rev]);
+  const ctx = useMemo(() => ({ companyId, setCompanyId, reload, notify: setToast, rev, email: auth?.email ?? "", signOut }), [companyId, setCompanyId, reload, rev, auth, signOut]);
+
+  if (!auth) return authErr
+    ? <div className="auth-wrap"><div className="notice" style={{ maxWidth: 480 }}><I.alert /><div><strong>Can't reach Plutus</strong><p>{authErr}</p><button className="btn small" style={{ marginTop: 10 }} onClick={checkAuth}>Try again</button></div></div></div>
+    : <div className="auth-wrap" aria-busy="true" />;
+  if (!auth.signedIn) {
+    if (auth.setupNeeded && auth.setupAllowed && auth.setupEmail) return <SetupScreen email={auth.setupEmail} onDone={checkAuth} />;
+    if (auth.setupNeeded) return <NoAccess />;
+    return <LoginScreen onDone={checkAuth} />;
+  }
 
   const [a, b, c] = route;
   const co = data.companies.find((x) => x.id === companyId);
@@ -177,7 +201,7 @@ export default function App() {
   if (state === "loading") page = <Loading />;
   else if (state !== "ready") page = (
     <div className="page"><div className="notice" style={{ maxWidth: 680 }}><I.alert /><div>
-      <strong>{state.status === 503 ? "Login protection isn’t switched on yet" : "Couldn’t load your data"}</strong>
+      <strong>Couldn’t load your data</strong>
       <p>{state.error}</p>
       <button className="btn small" style={{ marginTop: 10 }} onClick={() => { setState("loading"); reload(); }}>Try again</button>
     </div></div></div>

@@ -38,7 +38,8 @@ export async function api<T>(path: string, init?: { method?: string; body?: unkn
   }
   const text = await r.text();
   let j: any = null; try { j = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
-  if (!r.ok) throw new ApiError(r.status, j?.error ?? (r.status === 401 || r.status === 403 ? "Your sign-in has expired. Reload the page to sign in again." : `Server error (${r.status}).`));
+  if (r.status === 401 && !path.startsWith("auth/")) window.dispatchEvent(new Event("plutus:signed-out"));
+  if (!r.ok) throw new ApiError(r.status, j?.error ?? (r.status === 401 || r.status === 403 ? "Please sign in again." : `Server error (${r.status}).`));
   return j as T;
 }
 

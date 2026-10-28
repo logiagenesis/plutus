@@ -1,5 +1,5 @@
-// Every /api request must carry a valid Cloudflare Access login token.
-// Fails closed: if Access is not configured, the API refuses to serve any data.
+// Cloudflare Access check. Plutus now has its own login (see login.ts); Access is only used
+// to allow setting the very first password. Fails closed: no valid Access token means no.
 export type Env = {
   DB: D1Database;
   ASSETS: Fetcher;
@@ -24,9 +24,15 @@ async function keys(team: string): Promise<Jwk[]> {
 
 export class AuthError extends Error { constructor(msg: string, public status = 401) { super(msg); } }
 
-export async function requireUser(req: Request, env: Env): Promise<string> {
+/** Email from a valid Cloudflare Access token on this request, or null. */
+export async function accessEmail(req: Request, env: Env): Promise<string | null> {
   if (env.DEV_BYPASS === "1") return "dev@localhost";
-  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) throw new AuthError("Login protection is not set up yet, so no data is served.", 503);
+  if (!req.headers.get("Cf-Access-Jwt-Assertion")) return null;
+  try { return await requireAccess(req, env); } catch { return null; }
+}
+
+async function requireAccess(req: Request, env: Env): Promise<string> {
+  if (!env.ACCESS_TEAM_DOMAIN || !env.ACCESS_AUD) throw new AuthError("Access is not configured.", 503);
   const token = req.headers.get("Cf-Access-Jwt-Assertion");
   if (!token) throw new AuthError("Not signed in.");
   const [h, p, s] = token.split(".");

@@ -1,5 +1,6 @@
 import { calcDocument } from "../src/money";
-import { AuthError, requireUser, type Env } from "./auth";
+import { AuthError, type Env } from "./auth";
+import { handleAuth, requireSession } from "./login";
 
 // ───────── helpers ─────────
 class HttpError extends Error { constructor(public status: number, msg: string) { super(msg); } }
@@ -277,14 +278,15 @@ export default {
     const url = new URL(req.url);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
     try {
-      const actor = await requireUser(req, env);
-      // Same-origin writes only (Access cookies are first-party; this blocks cross-site form posts).
+      // Same-origin writes only (the login cookie is SameSite=Strict too; this blocks cross-site posts).
       if (req.method !== "GET") {
         const origin = req.headers.get("Origin");
         if (origin && origin !== url.origin) throw new HttpError(403, "Cross-site request refused");
         if ((req.method === "POST" || req.method === "PUT") && !(req.headers.get("content-type") ?? "").includes("application/json")) throw new HttpError(415, "JSON expected");
       }
       const p = url.pathname.split("/").filter(Boolean).slice(1); // after "api"
+      if (p[0] === "auth") { const r = await handleAuth(req, env, p[1] ?? ""); if (r) return r; throw new HttpError(404, "Not found"); }
+      const actor = await requireSession(req, env);
       const id = p[1] && /^\d{1,15}$/.test(p[1]) ? Number(p[1]) : undefined;
       if (p[1] && id === undefined && p[0] !== "import") throw new HttpError(404, "Not found");
       const m = req.method;

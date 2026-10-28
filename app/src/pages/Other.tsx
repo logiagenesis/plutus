@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { data } from "../data";
 import { I } from "../ui";
 import { useApp } from "../App";
+import { ChangePassword } from "./Login";
 
 export function Banking() {
   return (
@@ -28,7 +29,7 @@ export function Banking() {
 }
 
 export function Settings() {
-  const { companyId } = useApp();
+  const { companyId, notify, email } = useApp();
   const co = data.companies.find((c) => c.id === companyId) ?? data.companies[0];
   const rows: [string, string | undefined | null][] = [
     ["Company name", co.displayName], ["Registration number", co.registrationNumber], ["Email", co.email],
@@ -46,6 +47,7 @@ export function Settings() {
         <div className="stack">
           <div className="notice"><I.alert /><div><strong>Open questions</strong><p>Is Logia Services VAT-registered? Sage has no VAT number, and no invoice has charged VAT since September 2023.</p></div></div>
           <div className="notice info"><I.info /><div><strong>Numbering</strong><p>The next invoice will be {seq("invoice")} and the next quote {seq("quote")}.</p></div></div>
+          <section className="glass"><div className="panel-head"><h2>Your login</h2><span className="faint" style={{ fontSize: 13 }}>{email}</span></div><ChangePassword notify={notify} /></section>
           <a className="glass tile interactive" href="#/settings/import" style={{ display: "block", padding: 18 }}><div className="tile-label"><I.copy />Import from Sage</div><div className="muted" style={{ marginTop: 6 }}>Load customers, items, invoices and quotes from the Sage export file.</div></a>
         </div>
       </div>

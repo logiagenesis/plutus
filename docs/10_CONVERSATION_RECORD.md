@@ -84,6 +84,8 @@ No later user message in this record approves invented business details, a paid 
 15. Dennis supplied the official PLU+US logo (in chat and in Drive folder 1-xyQlgDVEGZQcUTZ32oH09chej0lyzjL) to be used everywhere. It replaced a stand-in logo Claude had drawn earlier the same morning.
 16. Dennis asked to document everything everywhere and to compact the conversation. Compacting is a command only Dennis can run in the app; it was not done by Claude.
 
+17. Dennis pointed out that the app's sign-in was his Cloudflare account login, which he did not know, and that Plutus must have its own login. Claude agreed this was its own mistake. Dennis chose his own email-and-password login for info@logia.co.za. He posted a password in chat; it was not used, and he sets his own on a one-time screen.
+
 ## Record boundaries
 Internal reasoning, credentials, signed download URLs and unrelated private account data are excluded.
 There is no claim to have exported unavailable old chats. The three original AI transcripts in Drive are source documents, not evidence that all their cited external research was completed.
