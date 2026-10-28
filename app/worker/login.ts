@@ -11,20 +11,20 @@ export const ITERATIONS = 25_000;
 export const MIN_LENGTH = 12;
 
 const enc = new TextEncoder();
-const hex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
-const unhex = (s: string) => Uint8Array.from(s.match(/../g) ?? [], (h) => parseInt(h, 16));
+export const hex = (b: ArrayBuffer | Uint8Array) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+export const unhex = (s: string) => Uint8Array.from(s.match(/../g) ?? [], (h) => parseInt(h, 16));
 const now = () => new Date().toISOString();
 
-async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<string> {
+export async function pbkdf2(password: string, salt: Uint8Array, iterations: number): Promise<string> {
   const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
   return hex(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, key, 256));
 }
-function sameHex(a: string, b: string) {
+export function sameHex(a: string, b: string) {
   if (a.length !== b.length) return false;
   let d = 0; for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return d === 0;
 }
-const sha256 = async (s: string) => hex(await crypto.subtle.digest("SHA-256", enc.encode(s)));
+export const sha256 = async (s: string) => hex(await crypto.subtle.digest("SHA-256", enc.encode(s)));
 
 export function checkNewPassword(p: unknown): string {
   if (typeof p !== "string" || p.length < MIN_LENGTH) throw new AuthError(`Use at least ${MIN_LENGTH} characters.`, 400);

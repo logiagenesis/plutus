@@ -103,3 +103,40 @@ export function ChangePassword({ notify }: { notify: (t: string) => void }) {
     </form>
   );
 }
+
+/** Shown only on a brand-new, empty Plutus while restore is switched on (moving to a new Cloudflare account). */
+export function RestoreScreen({ onDone }: { onDone: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault(); setErr(null);
+    if (!file) return setErr("Choose the backup file first.");
+    setBusy(true);
+    try {
+      const { restoreBackup } = await import("../backup");
+      const b = JSON.parse(await file.text());
+      await restoreBackup(b, email, password, setStatus);
+      setPassword(""); setStatus("Done. Every table matches the backup. Sign in with your usual Plutus password.");
+      setTimeout(onDone, 1500);
+    } catch (x) { setErr(x instanceof SyntaxError ? "That file is not a Plutus backup." : msg(x)); setBusy(false); }
+  };
+  return (
+    <Frame title="Restore Plutus" sub="This Plutus is empty. Load the backup file from the old Plutus. Your email and Plutus password from the backup are needed to prove it is yours.">
+      <form className="auth-form" onSubmit={submit}>
+        <label className="field" htmlFor="r-file"><span>Backup file (plutus-backup-….json)</span>
+          <input id="r-file" className="input" type="file" accept="application/json,.json" required onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
+        <label className="field" htmlFor="r-email"><span>Email</span>
+          <input id="r-email" className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+        <label className="field" htmlFor="r-pass"><span>Plutus password</span>
+          <input id="r-pass" className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        {status && <p className="faint" role="status">{status}</p>}
+        {err && <p className="auth-err" role="alert">{err}</p>}
+        <button className="btn primary" type="submit" disabled={busy}>{busy ? "Restoring…" : "Restore"}</button>
+      </form>
+    </Frame>
+  );
+}

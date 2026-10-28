@@ -1,5 +1,6 @@
 import { calcDocument } from "../src/money";
 import { AuthError, type Env } from "./auth";
+import { handleBackup, handleRestore } from "./backup";
 import { handleAuth, requireSession } from "./login";
 
 // ───────── helpers ─────────
@@ -286,7 +287,9 @@ export default {
       }
       const p = url.pathname.split("/").filter(Boolean).slice(1); // after "api"
       if (p[0] === "auth") { const r = await handleAuth(req, env, p[1] ?? ""); if (r) return r; throw new HttpError(404, "Not found"); }
+      if (p[0] === "restore") return await handleRestore(req, env, p[1] ?? "");
       const actor = await requireSession(req, env);
+      if (p[0] === "backup" && req.method === "GET") return await handleBackup(env, url, p[1] ?? "");
       const id = p[1] && /^\d{1,15}$/.test(p[1]) ? Number(p[1]) : undefined;
       if (p[1] && id === undefined && p[0] !== "import") throw new HttpError(404, "Not found");
       const m = req.method;

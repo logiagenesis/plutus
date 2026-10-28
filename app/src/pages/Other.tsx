@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { data } from "../data";
 import { I } from "../ui";
 import { useApp } from "../App";
@@ -48,6 +48,7 @@ export function Settings() {
           <div className="notice"><I.alert /><div><strong>Open questions</strong><p>Is Logia Services VAT-registered? Sage has no VAT number, and no invoice has charged VAT since September 2023.</p></div></div>
           <div className="notice info"><I.info /><div><strong>Numbering</strong><p>The next invoice will be {seq("invoice")} and the next quote {seq("quote")}.</p></div></div>
           <section className="glass"><div className="panel-head"><h2>Your login</h2><span className="faint" style={{ fontSize: 13 }}>{email}</span></div><ChangePassword notify={notify} /></section>
+          <section className="glass"><div className="panel-head"><h2>Backup</h2></div><BackupPanel notify={notify} /></section>
           <a className="glass tile interactive" href="#/settings/import" style={{ display: "block", padding: 18 }}><div className="tile-label"><I.copy />Import from Sage</div><div className="muted" style={{ marginTop: 6 }}>Load customers, items, invoices and quotes from the Sage export file.</div></a>
         </div>
       </div>
@@ -75,6 +76,32 @@ export function NotSetUp() {
           <button className="btn primary" onClick={() => setCompanyId("logia-services")}>Back to Logia Services</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function BackupPanel({ notify }: { notify: (t: string) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    setBusy(true); setErr(null);
+    try {
+      const { buildBackup, saveFile } = await import("../backup");
+      const b = await buildBackup(setStatus);
+      saveFile(b);
+      const total = Object.values(b.counts).reduce((a, n) => a + n, 0);
+      setStatus(`Saved ${total} rows from ${b.order.length} tables. Keep the file somewhere safe.`);
+      notify("Backup downloaded.");
+    } catch (x) { setErr(x instanceof Error ? x.message : String(x)); }
+    setBusy(false);
+  };
+  return (
+    <div style={{ padding: "4px 18px 18px" }}>
+      <p className="muted" style={{ marginTop: 0 }}>Downloads everything in Plutus as one file: customers, items, invoices, quotes, recurring invoices, numbering and settings. Sign-in sessions are left out.</p>
+      {status && <p className="faint" role="status">{status}</p>}
+      {err && <p className="auth-err" role="alert">{err}</p>}
+      <button className="btn" onClick={run} disabled={busy}>{busy ? "Preparing…" : "Download backup"}</button>
     </div>
   );
 }

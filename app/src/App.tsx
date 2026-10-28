@@ -11,7 +11,7 @@ import { Banking, Settings, NotSetUp } from "./pages/Other";
 import { CustomerForm, ItemForm } from "./pages/Forms";
 import ImportPage from "./pages/Import";
 import { api } from "./data";
-import { LoginScreen, SetupScreen, NoAccess, type AuthState } from "./pages/Login";
+import { LoginScreen, SetupScreen, NoAccess, RestoreScreen, type AuthState } from "./pages/Login";
 
 // ── Router: in-memory, so it works inside the private preview frame (which only passes plain #names).
 // Links keep href="#/path" for readability; a single click handler turns them into route changes.
@@ -169,8 +169,16 @@ export default function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [auth, setAuth] = useState<AuthState | null>(null);
   const [authErr, setAuthErr] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const checkAuth = useCallback(async () => {
-    try { setAuthErr(null); setAuth(await api<AuthState>("auth/state")); }
+    try {
+      setAuthErr(null);
+      // A brand-new, empty Plutus (restore switched on) shows the restore screen instead of sign-in.
+      const r = await api<{ enabled: boolean; blank: boolean }>("restore/state").catch(() => ({ enabled: false, blank: false }));
+      setRestoring(r.enabled && r.blank);
+      if (r.enabled && r.blank) return;
+      setAuth(await api<AuthState>("auth/state"));
+    }
     catch (e) { setAuthErr(e instanceof Error ? e.message : String(e)); }
   }, []);
   useEffect(() => { checkAuth(); }, [checkAuth]);
@@ -186,6 +194,7 @@ export default function App() {
   const setCompanyId = useCallback((id: string) => { try { localStorage.setItem("plutus.company", id); } catch { /* ignore */ } setCompanyIdState(id); }, []);
   const ctx = useMemo(() => ({ companyId, setCompanyId, reload, notify: setToast, rev, email: auth?.email ?? "", signOut }), [companyId, setCompanyId, reload, rev, auth, signOut]);
 
+  if (restoring) return <RestoreScreen onDone={checkAuth} />;
   if (!auth) return authErr
     ? <div className="auth-wrap"><div className="notice" style={{ maxWidth: 480 }}><I.alert /><div><strong>Can't reach Plutus</strong><p>{authErr}</p><button className="btn small" style={{ marginTop: 10 }} onClick={checkAuth}>Try again</button></div></div></div>
     : <div className="auth-wrap" aria-busy="true" />;
