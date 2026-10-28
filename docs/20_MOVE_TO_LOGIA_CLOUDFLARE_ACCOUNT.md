@@ -1,6 +1,7 @@
 # Moving Plutus to the dennis@logia.co.za Cloudflare account
 
 Started 28 October 2026, 10:15 SAST. Dennis asked: "Move everything to this Cloudflare environment. Everything. Redeploy the entire instance on a different Cloudflare environment. Move to dennis@logia.co.za."
+Drive copies: Plutus › 00_Project_Control, and Claude Folder › Projects › Plutus.
 
 ## Accounts
 | | Old (current live) | New (target) |
@@ -25,7 +26,7 @@ Tested end to end on two local instances (945 documents, 3,150 lines): all table
 ## Progress log
 - 10:22 Backup/restore built; typecheck and tests pass; pushed to main (5532193). Old account rebuilt automatically.
 - ~10:28 Backup downloaded from plutus.denweb82.workers.dev in Dennis's Chrome (with his OK): 4,399 rows from 13 tables. Matches the live database counts (users 1, customers 112, items 212, documents 945, document lines 3,076, recurring templates 16, recurring lines 24, companies 2, number sequences 6, audit events 2, import batches 1, migrations 2; sessions excluded).
-- Blocked: both Chrome windows connected to Claude are signed in to Cloudflare as denweb82@gmail.com, which can't open the new account until it accepts the pending invite.
+- Blocked: both Chrome windows connected to Claude are signed in to Cloudflare as denweb82@gmail.com, which can't open the new account until it accepts the pending invite. Re-checked 10:36: still no access.
 
 ## Still to do
 - New account: create D1 "plutus", connect Workers Builds to logiagenesis/plutus (root /app), point wrangler.jsonc at the new database with RESTORE_ENABLED "1".
