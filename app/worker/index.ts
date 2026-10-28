@@ -271,24 +271,6 @@ async function stats(env: Env) {
   return json({ documents: r[0].results, documentLines: r[1].results[0], customers: r[2].results[0], items: r[3].results[0], recurring: r[4].results[0], recurringLines: r[5].results[0], sequences: r[6].results });
 }
 
-// ───────── one-off move from the previous database (removed after the move) ─────────
-const COPY_TABLES = ["companies", "customers", "items", "documents", "document_lines", "recurring_templates", "recurring_lines", "number_sequences", "audit_events", "import_batches"];
-async function copyFromOld(env: Env, actor: string, url: URL) {
-  if (!env.OLD_DB) throw new HttpError(404, "Not found");
-  const table = url.searchParams.get("table") ?? "";
-  const offset = Number(url.searchParams.get("offset") ?? "0");
-  if (!COPY_TABLES.includes(table) || !Number.isInteger(offset) || offset < 0) throw new HttpError(400, "Bad table or offset");
-  const order = table === "companies" || table === "import_batches" ? "id" : table === "number_sequences" ? "company_id, kind" : "id";
-  const rows = (await env.OLD_DB.prepare(`SELECT * FROM ${table} ORDER BY ${order} LIMIT 200 OFFSET ?`).bind(offset).all<Record<string, unknown>>()).results;
-  if (rows.length) {
-    const cols = Object.keys(rows[0]);
-    const sql = `INSERT OR IGNORE INTO ${table} (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`;
-    await env.DB.batch(rows.map((r) => env.DB.prepare(sql).bind(...cols.map((c) => r[c] ?? null))));
-  }
-  const count = async (db: D1Database) => (await db.prepare(`SELECT count(*) n FROM ${table}`).first<{ n: number }>())!.n;
-  return json({ table, copied: rows.length, nextOffset: rows.length < 200 ? null : offset + rows.length, oldCount: await count(env.OLD_DB), newCount: await count(env.DB) });
-}
-
 // ───────── entry ─────────
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -304,7 +286,7 @@ export default {
       }
       const p = url.pathname.split("/").filter(Boolean).slice(1); // after "api"
       const id = p[1] && /^\d{1,15}$/.test(p[1]) ? Number(p[1]) : undefined;
-      if (p[1] && id === undefined && p[0] !== "import" && p[0] !== "admin") throw new HttpError(404, "Not found");
+      if (p[1] && id === undefined && p[0] !== "import") throw new HttpError(404, "Not found");
       const m = req.method;
       if (p[0] === "me" && m === "GET") return await json({ email: actor });
       if (p[0] === "bootstrap" && m === "GET") return await bootstrap(env, url);
@@ -324,7 +306,6 @@ export default {
         if (m === "POST" && id === undefined) return await saveItem(env, actor, await body<ItemIn>(req));
         if (m === "PUT" && id !== undefined) return await saveItem(env, actor, await body<ItemIn>(req), id);
       }
-      if (p[0] === "admin" && p[1] === "copy-old" && m === "POST") return await copyFromOld(env, actor, url);
       if (p[0] === "import" && p[1] && m === "POST") return await importChunk(env, actor, p[1], await body(req));
       throw new HttpError(404, "Not found");
     } catch (e) {

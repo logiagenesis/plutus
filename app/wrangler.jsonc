@@ -5,9 +5,7 @@
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "./dist", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
   "d1_databases": [
-    { "binding": "DB", "database_name": "plutus", "database_id": "d0ce91f8-0ae6-4844-99a8-846ed46caaf6", "migrations_dir": "migrations" },
-    // Temporary: previous database, read once to move the data across. Removed straight after.
-    { "binding": "OLD_DB", "database_name": "accounting666", "database_id": "819d4a2d-8f85-42d3-8ce2-e2142282b88a" }
+    { "binding": "DB", "database_name": "plutus", "database_id": "d0ce91f8-0ae6-4844-99a8-846ed46caaf6", "migrations_dir": "migrations" }
   ],
   "observability": { "enabled": true },
   // Cloudflare Access application for this Worker (public identifiers, not secrets). The API verifies every request against them.
