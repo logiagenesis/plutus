@@ -70,6 +70,20 @@ No later user message in this record approves invented business details, a paid 
 5. Dennis asked for all current clients and line items to be imported. He signed in to Sage in the browser; Claude read the data (no changes in Sage) and, with his permission, downloaded it. 112 customers, 212 items, 16 recurring templates, 625 invoices, 317 quotes and 3 credit notes were normalised. Data is in Drive 04_Data only; the report is 14_SAGE_IMPORT_REPORT.md.
 6. Dennis said: start; focus on design, look and feel, high quality; ease of use is top priority; he is used to Sage, so keep it simple; he is a business owner, not an accountant. Milestone 1 prototype built on the real data and published as a private Claude page (15_MILESTONE1_PROTOTYPE.md).
 
+## 27 October 2026 (evening) — Milestone 2 and going live
+7. Dennis asked about database options (free Oracle Cloud or Cloudflare) and said documents do not have to be stored in South Africa. Decision: Cloudflare D1.
+8. Dennis said "Go baby". Milestone 2 was built: Cloudflare Worker API, D1 database, saving drafts, issuing with safe automatic numbering, customer and item forms, and an Import from Sage screen.
+9. Dennis asked about an email server. Decision: send invoices from his own Google mailbox accounts@logia.co.za (not built yet).
+10. Dennis asked Claude to use his Chrome. Workers Builds was connected to GitHub (Dennis approved adding the repo to Cloudflare's GitHub app). Cloudflare Access sign-in was put in front of the app.
+11. The Sage data was imported into the live database on 27 Oct 2026 at 19:57 UTC. Counts and totals matched the import report.
+12. Dennis set up a monthly scheduled audit (22nd at 05:00) of the app.
+
+## 28 October 2026 — rename to Plutus and official logo
+13. Dennis asked for the name to change from the old project name to Plutus "now", and for a logo.
+14. Dennis then asked for the old name to be removed everywhere, "specifically the url".
+15. Dennis supplied the official PLU+US logo (in chat and in Drive folder 1-xyQlgDVEGZQcUTZ32oH09chej0lyzjL) to be used everywhere. It replaced a stand-in logo Claude had drawn earlier the same morning.
+16. Dennis asked to document everything everywhere and to compact the conversation. Compacting is a command only Dennis can run in the app; it was not done by Claude.
+
 ## Record boundaries
 Internal reasoning, credentials, signed download URLs and unrelated private account data are excluded.
 There is no claim to have exported unavailable old chats. The three original AI transcripts in Drive are source documents, not evidence that all their cited external research was completed.

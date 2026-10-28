@@ -85,5 +85,17 @@ This ledger and the conversation record cover available current-session material
 - Fix: quantities like 20 had been written as "2E+1" by the normaliser. Corrected; the import file was re-issued as v02 in Drive (v01 kept).
 - Milestone 1 prototype (commit 1060c0f): the money engine reproduces all 3,100 Sage lines; Playwright navigation and invoice flow pass; screenshots and a standalone HTML are in Drive 03_Development/04_Prototype/2026-10-27_v01; a private Claude page was published.
 
+## 28 October 2026 — rename to Plutus (actions and evidence)
+- Cloudflare Worker renamed in the dashboard (Settings › General › Name). New address https://plutus.denweb82.workers.dev. The Worker's Cloudflare Access policy and AUD tag carried over unchanged; Access application renamed to "plutus - Cloudflare Workers".
+- New D1 database "plutus" (d0ce91f8-0ae6-4844-99a8-846ed46caaf6, WEUR) created and given the schema. Data was copied from the previous database by a temporary, sign-in-protected route (tested locally first), then the route and the link to the previous database were removed (commit 5b8f39a).
+- Copy check (queried both databases afterwards): customers 112/112, items 212/212, documents 945/945, document lines 3,076/3,076, recurring templates 16/16, recurring lines 24/24, number sequences 6/6, audit events 1/1, import batches 1/1. Invoices 625, total 117,005,445 cents (R 1,170,054.45); quotes 317, total 455,383,912 cents (R 4,553,839.12); credit notes 3, total 1,102,649 cents. Line totals, IDs, customer links, recurring totals, item prices, sequences (next INV00006946, QUO001302, CRN0000125) identical in both.
+- Live app checked after sign-in: home screen loads from the new database (October R 14,890.00 from 18 invoices; R 8,159.00 recurring on 25 Nov).
+- GitHub repository renamed to logiagenesis/plutus (Settings › General). Workers Builds kept working after the rename (later builds succeeded).
+- Code: import format id is now plutus-import/1; browser storage key and package name renamed; all docs updated.
+- Drive: project folder renamed to Plutus (same ID). Files renamed in place (same IDs, links still work) and their contents updated: import files v01/v02, review workbook, prototype page, screenshots (re-taken from the renamed prototype), scheduled audit note, archive index and all numbered docs. The scheduled-audit chat log in Claude Folder › Chat Logs was re-created with the new name and the old copy moved to Drive trash.
+- Logo: official PLU+US files copied to brand/ in GitHub and to Drive 03_Development/05_Brand. The stand-in logo files were moved to Drive trash and removed from GitHub.
+- Scheduled audit task renamed "Plutus monthly audit (22nd, before recurring run)" and its instructions updated to the new repo, folder, file names and database.
+- Not changed by Claude (needs Dennis): the previous D1 database still exists (deleting it is permanent); the Cloudflare API token used by builds is still named after the old project; this Claude project and the ChatGPT project are still named after the old project; old Git commit messages and the first conversation records in chat history still contain the old name.
+
 ## Ongoing documentation rule
 For every substantive project round, preserve requests, decisions, sources, code/config changes, verification results, failures, unresolved work and artifact locations in GitHub and the organised Drive project. Include reviewable screenshots/test evidence when those artifacts exist. Never claim an unsaved or unverified copy exists.

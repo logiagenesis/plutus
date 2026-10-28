@@ -1,10 +1,29 @@
-# Plutus — current record, 28 October 2026
+# Plutus — start here (current as of 28 October 2026)
 
-Application source now exists in GitHub. The Cloudflare account check in this conversation verified Worker plutus and its enabled workers.dev subdomain: https://plutus.denweb82.workers.dev . Application workflows were not retested during this documentation repair.
+Plutus is the Logi-Ink in-house replacement for Sage Business Cloud Accounting. It invoices as Logia Services (Pty) Ltd now; Logi-Ink (Pty) Ltd is waiting for its company details.
 
-The statement below that the application was not built or deployed describes the earlier preparation snapshot and is superseded. The old empty Cloudflare inventory is also historical, not current status. Billing plan remains unverified.
+## Where everything lives
+- Live app (Cloudflare Access sign-in required): https://plutus.denweb82.workers.dev
+- Code and docs: https://github.com/logiagenesis/plutus (private). Every push to main builds and deploys automatically (Cloudflare Workers Builds, root /app).
+- Cloudflare: Worker "plutus", D1 database "plutus" (d0ce91f8-0ae6-4844-99a8-846ed46caaf6), account ddcd0a9eefadc42e5826dcbc4ef94cd4, Access team https://denweb.cloudflareaccess.com.
+- Drive: shared drive Google Desktop › Plutus (folder 19wJFooMd-9_11eNlf5antaifsXl4J3RL). Customer data lives only here (04_Data), never in GitHub.
+- Logo: brand/ in GitHub and Drive 03_Development/05_Brand (official PLU+US files from Dennis).
+- Monthly audit: scheduled task "Plutus monthly audit (22nd, before recurring run)", 05:00 SAST on the 22nd.
 
-[Full archive inventory](https://github.com/logiagenesis/plutus/blob/main/docs/17_DRIVE_FILE_INDEX.md) | [Reconciliation and gaps](https://github.com/logiagenesis/plutus/blob/main/docs/16_ARCHIVE_RECONCILIATION_2026-10-28.md)
+## What works today (verified 28 Oct 2026)
+- All Sage data is in the live database: 112 customers, 212 items, 16 recurring invoices, 625 invoices (R 1,170,054.45), 317 quotes, 3 credit notes. Next numbers: INV00006946, QUO001302, CRN0000125.
+- Create, save and issue invoices and quotes (numbers assigned on issue), add and edit customers and items, import from Sage.
+
+## Not built yet
+Sending email from accounts@logia.co.za, PDF download, bank statement (FNB CSV) import and matching, the automatic recurring run on the 25th (Sage still sends these), nightly backup to Drive, Logi-Ink setup, editing company settings.
+
+## Open questions for Dennis
+- Is Logia Services VAT-registered? (No VAT number in Sage; no VAT charged since September 2023.)
+- Logi-Ink details: registration and VAT numbers, bank details, logo use, sender address, last invoice number.
+- FNB statement CSV exports for building the bank matching.
+
+## Read next
+10_CONVERSATION_RECORD.md (what Dennis asked and decided), 11_ACTION_AND_EVIDENCE_LEDGER.md (what was done and how it was checked), 14_SAGE_IMPORT_REPORT.md, 15_MILESTONE1_PROTOTYPE.md, 18_BRAND_PLUTUS.md, 17_DRIVE_FILE_INDEX.md.
 
 ---
 
