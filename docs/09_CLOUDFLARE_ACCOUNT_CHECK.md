@@ -1,3 +1,5 @@
+> Update 28 October 2026: this is a historical preparation-stage check. A subsequent check verified Worker accounting666 and enabled hosting at https://accounting666.denweb82.workers.dev . Its empty-resource and unimplemented-app statements are not current status. Application functionality and billing plan are not certified by this update.
+
 # Cloudflare account check and documentation review
 Date: 27 October 2026 (Africa/Johannesburg).
 

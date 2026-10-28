@@ -1,3 +1,15 @@
+# Accounting666 — current record, 28 October 2026
+
+Application source now exists in GitHub. The Cloudflare account check in this conversation verified Worker accounting666 and its enabled workers.dev subdomain: https://accounting666.denweb82.workers.dev . Application workflows were not retested during this documentation repair.
+
+The statement below that the application was not built or deployed describes the earlier preparation snapshot and is superseded. The old empty Cloudflare inventory is also historical, not current status. Billing plan remains unverified.
+
+[Full archive inventory](https://github.com/logiagenesis/accounting666/blob/main/docs/17_DRIVE_FILE_INDEX.md) | [Reconciliation and gaps](https://github.com/logiagenesis/accounting666/blob/main/docs/16_ARCHIVE_RECONCILIATION_2026-10-28.md)
+
+---
+
+## Preserved preparation snapshot
+
 # Accounting666 — preparation pack
 Date: 27 October 2026 (Africa/Johannesburg)
 Status: planning complete for the proposed first build; application not built or deployed.
