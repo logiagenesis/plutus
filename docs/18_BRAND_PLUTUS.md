@@ -11,11 +11,10 @@ Date: 2026-10-28. Requested by Dennis.
 - Import file format id: plutus-import/1. The current import file is 2026-10-27_Plutus_Import_Logia-Services_v02.json. Only its file name and format id were changed for the rename; the Sage data in it is unchanged.
 
 ## Logo
-- Mark: a "P" whose bowl is a coin, in the app's cyan-to-indigo gradient, on a dark glass tile.
-- Wordmark: "Plutus" set in Geist SemiBold (open licence OFL-1.1), converted to outlines so it needs no font installed.
-- Files in brand/:
-  - plutus-mark.svg (master), plutus-mark-512.png, plutus-mark-1024.png, apple-touch-icon.png
-  - plutus-glyph.svg (the P-coin without the tile, for dark backgrounds)
-  - plutus-logo-dark.svg/.png (for dark backgrounds), plutus-logo-light.svg/.png (for light backgrounds)
-  - preview.png (all versions on dark and light)
-- The design is original. It was not checked against trademark registers.
+- Official logo supplied by Dennis on 2026-10-28 (Drive folder https://drive.google.com/drive/folders/1-xyQlgDVEGZQcUTZ32oH09chej0lyzjL): the wordmark "PLU+US", where the T is a cyan-to-blue plus sign, and an app icon with a white plus on a cyan-to-blue rounded tile.
+- Files in brand/ (exact copies of the supplied files):
+  - Plutus-logo-white.png (for dark backgrounds, used in the app)
+  - Plutus-logo-black.png (for light backgrounds, documents and invoices)
+  - Plutus-icon.png (1024 x 1024 app icon)
+- Made from those files for the app: app/public/plutus-wordmark.png (white logo, 640 px wide), favicon.png (64 px), favicon-32.png and apple-touch-icon.png (180 px), resized from Plutus-icon.png.
+- An earlier stand-in logo (a P with a coin) was removed when the official logo arrived.
