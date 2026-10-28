@@ -27,7 +27,7 @@ export default function ImportPage() {
     try {
       const text = await f.text();
       const d = JSON.parse(text) as ImportFile;
-      if (d.format !== "accounting666-import/1") throw new Error("This isn’t an Accounting666 import file. Choose the file named …Import_Logia-Services_v02.json.");
+      if (d.format !== "accounting666-import/1") throw new Error("This isn’t a Plutus import file. Choose the file named …Import_Logia-Services_v02.json.");
       setFile({ name: f.name, text, d, sha: await sha256(text) });
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   }

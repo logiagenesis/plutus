@@ -16,7 +16,7 @@ export default function RecurringPage() {
       <div className="tiles" style={{ marginBottom: 16 }}>
         <div className="glass tile span-4 tile-pad" style={{ minHeight: 0 }}><div className="tile-label"><I.repeat />Every month</div><div className="tile-value num">{rand(monthly)}</div><div className="muted">{data.recurring.filter((r) => r.active && r.frequency === "monthly").length} invoices to {new Set(data.recurring.filter((r) => r.active && r.frequency === "monthly").map((r) => r.customerSageId)).size} customers</div></div>
         <div className="glass tile span-4 tile-pad" style={{ minHeight: 0 }}><div className="tile-label"><I.repeat />Every year</div><div className="tile-value num">{rand(annual)}</div><div className="muted">{data.recurring.filter((r) => r.active && r.frequency === "annually").length} invoice</div></div>
-        <div className="notice info span-4" style={{ alignSelf: "stretch" }}><I.info /><div><strong>Nothing is sent from here yet</strong><p>Sage still sends these until you switch over. Then Accounting666 takes over the run.</p></div></div>
+        <div className="notice info span-4" style={{ alignSelf: "stretch" }}><I.info /><div><strong>Nothing is sent from here yet</strong><p>Sage still sends these until you switch over. Then Plutus takes over the run.</p></div></div>
       </div>
       <section className="glass panel">
         <div className="table-wrap">

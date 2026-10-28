@@ -13,7 +13,7 @@ export function Banking() {
           <ol style={{ margin: "6px 0 0", paddingLeft: 20, lineHeight: 1.9, color: "var(--text-2)" }}>
             <li>Download your statement from FNB Online Banking as a CSV file.</li>
             <li>Drop it here. You check the columns once; it remembers them.</li>
-            <li>Accounting666 suggests which invoice each payment belongs to, and why.</li>
+            <li>Plutus suggests which invoice each payment belongs to, and why.</li>
             <li>You click to confirm. Partial and split payments are handled.</li>
           </ol>
           <div className="tile-foot">This is the next thing being built.</div>

@@ -1,4 +1,4 @@
-// Money rules for Accounting666.
+// Money rules for Plutus.
 // All stored amounts are integer cents. Quantities, unit prices, discount % and tax rate
 // are combined with exact integer arithmetic, then rounded half-up to the cent per line,
 // matching how Sage Business Cloud Accounting computed every line in the imported history.

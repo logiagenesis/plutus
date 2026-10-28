@@ -1,4 +1,4 @@
-// Data store: loaded from the Accounting666 API (Cloudflare D1) and kept in memory.
+// Data store: loaded from the Plutus API (Cloudflare D1) and kept in memory.
 // Components read the exported collections; after any change the store reloads and the app re-renders.
 
 export type Line = {

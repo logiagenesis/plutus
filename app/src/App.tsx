@@ -103,7 +103,7 @@ function Shell({ children, active }: { children: ReactNode; active: string }) {
   return (
     <div className="shell">
       <aside className="rail" aria-label="Main">
-        <div className="wordmark" aria-label="Accounting666">Accounting<b>666</b></div>
+        <div className="wordmark" aria-label="Plutus"><img className="logo-mark" src="./favicon.svg" alt="" width="28" height="28" />Plutus</div>
         <CompanySwitch />
         <nav className="nav">
           {NAV.map((n) => (
@@ -115,7 +115,7 @@ function Shell({ children, active }: { children: ReactNode; active: string }) {
         <div className="rail-foot">Logi-Ink internal<br />Saved to your Cloudflare database</div>
       </aside>
       <header className="topbar">
-        <div className="wordmark" style={{ padding: 0 }}>A<b>666</b></div>
+        <div className="wordmark" style={{ padding: 0 }} aria-label="Plutus"><img className="logo-mark" src="./favicon.svg" alt="" width="28" height="28" />Plutus</div>
         <CompanySwitch />
         <a className="icon-btn" href="#/settings" aria-label="Settings"><I.cog /></a>
       </header>
