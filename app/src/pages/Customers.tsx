@@ -70,6 +70,7 @@ export function CustomerView({ id }: { id: number }) {
       <div className="page-head">
         <div><h1>{c.name}</h1><p className="sub">{c.category ?? "No category"} · {inv.length} invoices · {rand(total)} invoiced in total</p></div>
         <div className="toolbar">
+          <a className="btn" href={`#/customers/${c.sageId}/statement`}><I.print />Statement</a>
           <a className="btn" href={`#/quotes/new`}>New quote</a>
           <a className="btn" href={`#/customers/${c.sageId}/edit`}>Edit</a>
           <a className="btn primary" href={inv.find((d) => d.status === "issued") ? `#/invoices/new?from=${inv.find((d) => d.status === "issued")!.sageId}` : "#/invoices/new"}><I.plus />New invoice</a>

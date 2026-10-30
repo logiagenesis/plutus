@@ -5,6 +5,7 @@ import Home from "./pages/Home";
 import { DocList, DocView } from "./pages/Documents";
 import Editor from "./pages/Editor";
 import { CustomerList, CustomerView } from "./pages/Customers";
+import CustomerStatement from "./pages/Statement";
 import RecurringPage from "./pages/Recurring";
 import Items from "./pages/Items";
 import Banking from "./pages/Banking";
@@ -225,6 +226,7 @@ export default function App() {
   else if (a === "quotes") page = <DocList kind="quote" key="lq" />;
   else if (a === "customers" && b === "new") page = <CustomerForm key="cn" />;
   else if (a === "customers" && b && c === "edit") page = <CustomerForm id={Number(b)} key={"ce" + b} />;
+  else if (a === "customers" && b && c === "statement") page = <CustomerStatement id={Number(b)} key={"cs" + b} />;
   else if (a === "customers" && b) page = <CustomerView id={Number(b)} key={b} />;
   else if (a === "customers") page = <CustomerList />;
   else if (a === "recurring") page = <RecurringPage />;

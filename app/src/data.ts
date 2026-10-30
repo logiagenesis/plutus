@@ -186,3 +186,43 @@ export type BankStats = {
   matched_cents: number;
   ignored_count: number;
 };
+
+export type StatementLine = {
+  date: string;
+  kind: "invoice" | "payment" | "credit_note";
+  number: string;
+  reference: string | null;
+  description: string;
+  debitCents: number;
+  creditCents: number;
+  balanceCents: number;
+  documentId?: number;
+  paymentId?: number;
+};
+
+export type StatementData = {
+  company: CompanySnapshot;
+  customer: {
+    id: number;
+    name: string;
+    contact: string | null;
+    email: string | null;
+    telephone: string | null;
+    mobile: string | null;
+    vat: string | null;
+    postal: string[];
+    delivery: string[];
+  };
+  fromDate: string;
+  toDate: string;
+  openingBalanceCents: number;
+  closingBalanceCents: number;
+  lines: StatementLine[];
+  aging: {
+    currentCents: number;
+    days30Cents: number;
+    days60Cents: number;
+    days90Cents: number;
+    totalDueCents: number;
+  };
+};

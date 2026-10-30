@@ -893,6 +893,317 @@ async function handleBankUnmatch(env: Env, actor: string, input: { transactionId
   return json({ ok: true, transactionId: tx.id, status: "unmatched" });
 }
 
+
+// ───────── Customer Account Statement & Ledger (Piece 5) ─────────
+type StatementLine = {
+  date: string;
+  kind: "invoice" | "payment" | "credit_note";
+  number: string;
+  reference: string | null;
+  description: string;
+  debitCents: number;
+  creditCents: number;
+  balanceCents: number;
+  documentId?: number;
+  paymentId?: number;
+};
+
+async function getCustomerStatement(env: Env, customerId: number, url: URL) {
+  const cust = await env.DB.prepare("SELECT * FROM customers WHERE id = ?").bind(customerId).first<any>();
+  if (!cust) throw new HttpError(404, "Customer not found");
+
+  const co = await env.DB.prepare("SELECT * FROM companies WHERE id = ?").bind(cust.company_id).first<any>();
+  if (!co) throw new HttpError(404, "Company not found");
+
+  const today = new Date().toISOString().slice(0, 10);
+  const qFrom = url.searchParams.get("from");
+  const qTo = url.searchParams.get("to");
+
+  const toDate = qTo && isCalendarDate(qTo) ? qTo : today;
+  let fromDate = qFrom && isCalendarDate(qFrom) ? qFrom : "";
+  if (!fromDate) {
+    const d = new Date(toDate + "T00:00:00Z");
+    d.setUTCDate(d.getUTCDate() - 90);
+    fromDate = d.toISOString().slice(0, 10);
+  }
+  if (fromDate > toDate) throw bad("From date cannot be after To date");
+
+  // 1. Calculate opening balance as of fromDate
+  const openDebits = await env.DB.prepare(`
+    SELECT COALESCE(SUM(total_cents), 0) AS total
+    FROM documents
+    WHERE customer_id = ? AND kind = 'invoice' AND status = 'issued' AND date < ?
+  `).bind(customerId, fromDate).first<{ total: number }>();
+
+  const openCredits = await env.DB.prepare(`
+    SELECT COALESCE(SUM(total_cents), 0) AS total
+    FROM documents
+    WHERE customer_id = ? AND kind = 'credit_note' AND status = 'issued' AND date < ?
+  `).bind(customerId, fromDate).first<{ total: number }>();
+
+  const openPayments = await env.DB.prepare(`
+    SELECT COALESCE(SUM(p.amount_cents), 0) AS total
+    FROM payments p
+    JOIN documents d ON d.id = p.document_id
+    WHERE d.customer_id = ? AND p.voided_at IS NULL AND p.date < ?
+  `).bind(customerId, fromDate).first<{ total: number }>();
+
+  const openingBalanceCents = (openDebits?.total ?? 0) - (openCredits?.total ?? 0) - (openPayments?.total ?? 0);
+
+  // 2. Fetch period documents (invoices, credit notes)
+  const docs = await env.DB.prepare(`
+    SELECT id, kind, number, date, due_date, reference, total_cents,
+      (SELECT description FROM document_lines WHERE document_id = documents.id AND line_no = 1) AS first_line
+    FROM documents
+    WHERE customer_id = ? AND kind IN ('invoice', 'credit_note') AND status = 'issued' AND date >= ? AND date <= ?
+  `).bind(customerId, fromDate, toDate).all<any>();
+
+  // 3. Fetch period payments
+  const pays = await env.DB.prepare(`
+    SELECT p.id, p.date, p.amount_cents, p.method, p.reference, p.note,
+      d.id AS document_id, d.number AS doc_number
+    FROM payments p
+    JOIN documents d ON d.id = p.document_id
+    WHERE d.customer_id = ? AND p.voided_at IS NULL AND p.date >= ? AND p.date <= ?
+  `).bind(customerId, fromDate, toDate).all<any>();
+
+  // 4. Combine and sort transactions chronologically
+  type RawTx = {
+    date: string;
+    kind: "invoice" | "payment" | "credit_note";
+    number: string;
+    reference: string | null;
+    description: string;
+    debitCents: number;
+    creditCents: number;
+    documentId?: number;
+    paymentId?: number;
+    id: number;
+  };
+
+  const rawList: RawTx[] = [];
+  for (const d of docs.results) {
+    if (d.kind === "invoice") {
+      rawList.push({
+        id: d.id,
+        date: d.date,
+        kind: "invoice",
+        number: d.number,
+        reference: d.reference,
+        description: d.first_line ?? "Invoice",
+        debitCents: d.total_cents,
+        creditCents: 0,
+        documentId: d.id,
+      });
+    } else if (d.kind === "credit_note") {
+      rawList.push({
+        id: d.id,
+        date: d.date,
+        kind: "credit_note",
+        number: d.number,
+        reference: d.reference,
+        description: d.first_line ?? "Credit Note",
+        debitCents: 0,
+        creditCents: d.total_cents,
+        documentId: d.id,
+      });
+    }
+  }
+
+  for (const p of pays.results) {
+    rawList.push({
+      id: p.id,
+      date: p.date,
+      kind: "payment",
+      number: p.reference ? `Payment (${p.reference})` : `Payment for ${p.doc_number ?? "Invoice"}`,
+      reference: p.doc_number,
+      description: p.note ?? (p.method ? `Method: ${p.method}` : "Payment received"),
+      debitCents: 0,
+      creditCents: p.amount_cents,
+      documentId: p.document_id,
+      paymentId: p.id,
+    });
+  }
+
+  rawList.sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id);
+
+  let currentBalance = openingBalanceCents;
+  const lines: StatementLine[] = rawList.map((tx) => {
+    currentBalance += (tx.debitCents - tx.creditCents);
+    return {
+      date: tx.date,
+      kind: tx.kind,
+      number: tx.number,
+      reference: tx.reference,
+      description: tx.description,
+      debitCents: tx.debitCents,
+      creditCents: tx.creditCents,
+      balanceCents: currentBalance,
+      documentId: tx.documentId,
+      paymentId: tx.paymentId,
+    };
+  });
+
+  const closingBalanceCents = currentBalance;
+
+  // 5. Calculate Aging Analysis (0-30, 31-60, 61-90, 91+ days)
+  const openInvoices = await env.DB.prepare(`
+    SELECT d.id, d.number, d.date, d.total_cents,
+      (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL AND date <= ?) AS paid_cents
+    FROM documents d
+    WHERE d.customer_id = ? AND d.kind = 'invoice' AND d.status = 'issued' AND d.date <= ?
+    ORDER BY d.date ASC
+  `).bind(toDate, customerId, toDate).all<any>();
+
+  let currentAging = 0;
+  let days30 = 0;
+  let days60 = 0;
+  let days90 = 0;
+
+  const toMs = new Date(toDate + "T00:00:00Z").getTime();
+
+  for (const inv of openInvoices.results) {
+    const open = Math.max(0, inv.total_cents - inv.paid_cents);
+    if (open <= 0) continue;
+    const invMs = new Date(inv.date + "T00:00:00Z").getTime();
+    const ageDays = Math.floor((toMs - invMs) / (1000 * 60 * 60 * 24));
+    if (ageDays <= 30) currentAging += open;
+    else if (ageDays <= 60) days30 += open;
+    else if (ageDays <= 90) days60 += open;
+    else days90 += open;
+  }
+
+  const companySnapshot = {
+    id: co.id,
+    displayName: co.display_name,
+    registeredName: co.registered_name,
+    registrationNumber: co.registration_number,
+    vatNumber: co.vat_number,
+    email: co.email,
+    telephone: co.telephone,
+    address: JSON.parse(co.address_json || "[]"),
+  };
+
+  const customerSnapshot = {
+    id: cust.id,
+    name: cust.name,
+    contact: cust.contact_name,
+    email: cust.email,
+    telephone: cust.telephone,
+    mobile: cust.mobile,
+    vat: cust.vat_number,
+    postal: JSON.parse(cust.postal_address_json || "[]"),
+    delivery: JSON.parse(cust.delivery_address_json || "[]"),
+  };
+
+  return json({
+    company: companySnapshot,
+    customer: customerSnapshot,
+    fromDate,
+    toDate,
+    openingBalanceCents,
+    closingBalanceCents,
+    lines,
+    aging: {
+      currentCents: currentAging,
+      days30Cents: days30,
+      days60Cents: days60,
+      days90Cents: days90,
+      totalDueCents: closingBalanceCents,
+    },
+  });
+}
+
+async function sendCustomerStatement(env: Env, actor: string, customerId: number, body: { fromDate?: string; toDate?: string; toEmail?: string; ccEmail?: string }) {
+  const cust = await env.DB.prepare("SELECT * FROM customers WHERE id = ?").bind(customerId).first<any>();
+  if (!cust) throw new HttpError(404, "Customer not found");
+
+  const to = str(body?.toEmail ?? cust.email, 200);
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw bad("A valid recipient email address is required");
+  const cc = str(body?.ccEmail, 200);
+
+  const url = new URL(`https://test.invalid/api/customers/${customerId}/statement`);
+  if (body?.fromDate) url.searchParams.set("from", body.fromDate);
+  if (body?.toDate) url.searchParams.set("to", body.toDate);
+
+  const stmtResponse = await getCustomerStatement(env, customerId, url);
+  const data = await stmtResponse.json() as any;
+
+  const co = data.company;
+  const subject = `Statement of Account from ${co.displayName} (${data.fromDate} to ${data.toDate})`;
+
+  const bodyText = `Dear ${data.customer.contact || data.customer.name},
+
+Please find attached your Statement of Account from ${co.displayName} for the period ${data.fromDate} to ${data.toDate}.
+
+Statement Summary:
+- Opening Balance: R ${(data.openingBalanceCents / 100).toFixed(2)}
+- Total Invoiced: R ${(data.lines.filter((l: any) => l.debitCents > 0).reduce((a: number, l: any) => a + l.debitCents, 0) / 100).toFixed(2)}
+- Total Payments Received: R ${(data.lines.filter((l: any) => l.creditCents > 0).reduce((a: number, l: any) => a + l.creditCents, 0) / 100).toFixed(2)}
+- Closing Balance Outstanding: R ${(data.closingBalanceCents / 100).toFixed(2)}
+
+Aging Analysis:
+- Current (0-30 days): R ${(data.aging.currentCents / 100).toFixed(2)}
+- 30 Days: R ${(data.aging.days30Cents / 100).toFixed(2)}
+- 60 Days: R ${(data.aging.days60Cents / 100).toFixed(2)}
+- 90+ Days: R ${(data.aging.days90Cents / 100).toFixed(2)}
+- Total Due: R ${(data.aging.totalDueCents / 100).toFixed(2)}
+
+Banking Details:
+Bank: First National Bank (FNB)
+Account Name: ${co.displayName}
+Account Number: 62932184469
+Branch Code: 250 655 (Menlyn Maine)
+Reference: ${data.customer.name}
+Proof of Payment: accounts@logia.co.za
+
+Kind regards,
+Accounts Department
+${co.displayName}
+${co.email || "accounts@logia.co.za"}
+${co.telephone || ""}
+`;
+
+  let providerId: string | null = null;
+  let status = "sent";
+
+  if (env.RESEND_API_KEY) {
+    try {
+      const fromAddr = env.EMAIL_FROM || "accounts@logia.co.za";
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: `${co.displayName} <${fromAddr}>`,
+          to: [to],
+          cc: cc ? [cc] : undefined,
+          subject,
+          text: bodyText,
+        }),
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(`Email provider error: ${errJson.message || res.statusText}`);
+      }
+      const resData = await res.json() as any;
+      providerId = resData?.id ?? null;
+    } catch (e) {
+      console.error("Resend API failed:", e);
+      status = "failed";
+      throw new HttpError(502, `Failed to send email: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  await audit(env, actor, "statement_email_sent", "customer", customerId, {
+    to, cc, subject, status, providerId, period: `${data.fromDate} to ${data.toDate}`, closingBalance: data.closingBalanceCents
+  }).run();
+
+  return json({ ok: true, recipient: to, cc, subject, status, providerId });
+}
+
 async function deleteDraft(env: Env, actor: string, id: number) {
   const r = await env.DB.batch([
     env.DB.prepare("DELETE FROM document_lines WHERE document_id = ? AND (SELECT status FROM documents WHERE id = ?) = 'draft'").bind(id, id),
@@ -1043,6 +1354,8 @@ export default {
         if (id !== undefined && m === "DELETE") return await deleteDraft(env, actor, id);
       }
       if (p[0] === "customers") {
+        if (id !== undefined && p[2] === "statement" && p[3] === "send" && m === "POST") return await sendCustomerStatement(env, actor, id, await body<any>(req));
+        if (id !== undefined && p[2] === "statement" && m === "GET") return await getCustomerStatement(env, id, url);
         if (m === "POST" && id === undefined) return await saveCustomer(env, actor, await body<CustomerIn>(req));
         if (m === "PUT" && id !== undefined) return await saveCustomer(env, actor, await body<CustomerIn>(req), id);
       }

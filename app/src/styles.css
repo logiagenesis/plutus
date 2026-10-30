@@ -294,6 +294,12 @@ table.grid { width: 100%; border-collapse: collapse; }
 .paper .p-bank-head { font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: #16202b; margin-bottom: 8px; border-bottom: 1px solid #dfe5eb; padding-bottom: 4px; }
 .paper .p-bank-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; }
 .paper .p-bank-foot { margin-top: 8px; padding-top: 6px; border-top: 1px dashed #dfe5eb; color: #3b4755; font-size: 11px; }
+
+.paper .p-aging { margin-top: 16px; padding: 10px 14px; background: #f8fafc; border: 1px solid #dfe5eb; border-radius: 8px; font-size: 11px; }
+.paper .p-aging-grid { display: grid; grid-template-columns: repeat(5, 1fr); text-align: right; gap: 8px; }
+.paper .p-aging-cell-lbl { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; font-weight: 600; margin-bottom: 3px; }
+.paper .p-aging-cell-val { font-size: 12px; font-weight: 700; color: #0f172a; }
+
 .preview-tabs { display: none; }
 
 /* Detail layout */
@@ -418,6 +424,11 @@ table.grid { width: 100%; border-collapse: collapse; }
     background: #f8fafc !important;
     border: 1px solid #cbd5e1 !important;
   }
+  .paper .p-aging {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
   @page {
     size: A4 portrait;
     margin: 15mm 15mm 15mm 15mm;

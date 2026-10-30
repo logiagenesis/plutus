@@ -252,6 +252,25 @@ let docAfterUnmatch = await call(env, "documents/" + inv.id);
 const totalPaidUnmatch = docAfterUnmatch.body.payments.filter((p) => !p.voided_at).reduce((a, p) => a + p.amount_cents, 0);
 ok("invoice open balance restored after unmatch", totalPaidUnmatch === 4000);
 
+// Piece 5: Customer Account Statement & Ledger
+let stmtAll = await call(env, "customers/1/statement?from=2026-01-01&to=2026-12-31");
+ok("statement returns customer, company, lines and aging", stmtAll.status === 200 && stmtAll.body.lines.length >= 1 && "aging" in stmtAll.body);
+
+ok("statement closing balance matches final line running balance", stmtAll.body.closingBalanceCents === stmtAll.body.lines[stmtAll.body.lines.length - 1].balanceCents);
+
+ok("statement aging breakdown accounts for outstanding amounts", (stmtAll.body.aging.currentCents + stmtAll.body.aging.days30Cents + stmtAll.body.aging.days60Cents + stmtAll.body.aging.days90Cents) > 0);
+
+// Opening balance check: period starting after first invoice
+let stmtLate = await call(env, "customers/1/statement?from=2026-11-01&to=2026-12-31");
+ok("statement opening balance reflects previous period balance", stmtLate.status === 200 && stmtLate.body.openingBalanceCents > 0);
+
+// Statement emailing
+ok("emailing statement requires valid email", (await call(env, "customers/1/statement/send", "POST", { toEmail: "not-an-email" })).status === 400);
+
+let emailStmt = await call(env, "customers/1/statement/send", "POST", { toEmail: "accounts@testcustomer.co.za", ccEmail: "accounts@logia.co.za" });
+ok("statement email sent and audited", emailStmt.status === 200 && emailStmt.body.ok === true && emailStmt.body.recipient === "accounts@testcustomer.co.za");
+
+
 
 // F08: clearing a password (reset) ends existing sessions
 db.db.prepare("UPDATE users SET password_hash=NULL WHERE id=1").run();
