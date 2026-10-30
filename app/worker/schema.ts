@@ -16,9 +16,9 @@ async function upgrade(env: Env): Promise<boolean> {
       (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='documents') AS docs,
       (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='payments') AS pays,
       (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='email_messages') AS emails,
-      (SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name IN ('edit_token','company_snapshot_json','sent_at','sent_to')) AS cols`).first<{ docs: number; pays: number; emails: number; cols: number }>();
+      (SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name IN ('edit_token','company_snapshot_json','sent_at','sent_to','recurring_template_id','recurring_period')) AS cols`).first<{ docs: number; pays: number; emails: number; cols: number }>();
   if (!c?.docs) return false;
-  if (c.pays === 1 && c.emails === 1 && c.cols === 4) return true;
+  if (c.pays === 1 && c.emails === 1 && c.cols === 6) return true;
   const doc = await columns(env, "documents");
   const st: D1PreparedStatement[] = [];
   // Per-save token: only the request that actually updated the header may replace the lines (audit F01).
@@ -28,6 +28,9 @@ async function upgrade(env: Env): Promise<boolean> {
   // Tracking outbound delivery timestamp and recipient (Piece 2).
   if (!doc.has("sent_at")) st.push(env.DB.prepare("ALTER TABLE documents ADD COLUMN sent_at TEXT"));
   if (!doc.has("sent_to")) st.push(env.DB.prepare("ALTER TABLE documents ADD COLUMN sent_to TEXT"));
+  // Recurring batch idempotency: strictly one invoice per template per period (Piece 3).
+  if (!doc.has("recurring_template_id")) st.push(env.DB.prepare("ALTER TABLE documents ADD COLUMN recurring_template_id INTEGER REFERENCES recurring_templates(id)"));
+  if (!doc.has("recurring_period")) st.push(env.DB.prepare("ALTER TABLE documents ADD COLUMN recurring_period TEXT"));
 
   st.push(env.DB.prepare(`CREATE TABLE IF NOT EXISTS payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,6 +63,7 @@ async function upgrade(env: Env): Promise<boolean> {
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   )`));
   st.push(env.DB.prepare("CREATE INDEX IF NOT EXISTS emails_document ON email_messages(document_id)"));
+  st.push(env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS doc_recurring_unique ON documents(recurring_template_id, recurring_period) WHERE status <> 'void'"));
 
   try { await env.DB.batch(st); }
   catch (e) {
@@ -67,7 +71,7 @@ async function upgrade(env: Env): Promise<boolean> {
     const now = await columns(env, "documents");
     const pay = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='payments'").first();
     const em = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='email_messages'").first();
-    if (!(now.has("edit_token") && now.has("company_snapshot_json") && now.has("sent_at") && pay && em)) throw e;
+    if (!(now.has("edit_token") && now.has("company_snapshot_json") && now.has("sent_at") && now.has("recurring_template_id") && pay && em)) throw e;
   }
   return true;
 }

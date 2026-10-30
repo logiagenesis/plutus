@@ -330,6 +330,169 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn) {
   return getDocument(env, docId);
 }
 
+
+// ───────── recurring batch execution (Piece 3) ─────────
+function defaultRecurringDate(): string {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}-25`;
+}
+
+function calculateDueDate(isoDate: string): string {
+  const [y, m] = isoDate.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+}
+
+async function previewRecurringRun(env: Env, companyId: string, targetDate?: string) {
+  const date = targetDate && isCalendarDate(targetDate) ? targetDate : defaultRecurringDate();
+  const period = date.slice(0, 7);
+  const templates = await env.DB.prepare(`
+    SELECT t.id, t.sage_id, t.sage_number, t.customer_id, t.reference, t.exclusive_cents, t.tax_cents, t.total_cents, t.last_run_date,
+      c.name AS customer_name, c.email AS customer_email
+    FROM recurring_templates t
+    JOIN customers c ON c.id = t.customer_id
+    WHERE t.company_id = ? AND t.active = 1 AND t.frequency = "monthly"
+    ORDER BY c.name
+  `).bind(companyId).all<any>();
+
+  const generated = await env.DB.prepare(`
+    SELECT recurring_template_id, number, id FROM documents
+    WHERE company_id = ? AND recurring_period = ? AND status <> "void"
+  `).bind(companyId, period).all<{ recurring_template_id: number; number: string; id: number }>();
+  const genMap = new Map(generated.results.map((g) => [g.recurring_template_id, g]));
+
+  const items = templates.results.map((t: any) => {
+    const existing = genMap.get(t.id);
+    return {
+      templateId: t.id,
+      customerName: t.customer_name,
+      customerEmail: t.customer_email,
+      reference: t.reference,
+      totalCents: t.total_cents,
+      taxCents: t.tax_cents,
+      alreadyRun: !!existing,
+      invoiceNumber: existing?.number ?? null,
+      invoiceId: existing?.id ?? null,
+    };
+  });
+
+  const dueItems = items.filter((i: any) => !i.alreadyRun);
+  const dueTotal = dueItems.reduce((acc: number, i: any) => acc + i.totalCents, 0);
+
+  return {
+    period,
+    runDate: date,
+    companyId,
+    totalTemplates: items.length,
+    dueCount: dueItems.length,
+    alreadyRunCount: items.length - dueItems.length,
+    projectedTotalCents: dueTotal,
+    items,
+  };
+}
+
+async function runRecurringBatch(env: Env, actor: string = "system:cron", companyId: string = "logia-services", targetDate?: string) {
+  const date = targetDate && isCalendarDate(targetDate) ? targetDate : defaultRecurringDate();
+  const period = date.slice(0, 7);
+  const dueDate = calculateDueDate(date);
+
+  const templates = await env.DB.prepare(`
+    SELECT t.*, c.name AS customer_name, c.email AS customer_email
+    FROM recurring_templates t
+    JOIN customers c ON c.id = t.customer_id
+    WHERE t.company_id = ? AND t.active = 1 AND t.frequency = "monthly"
+    ORDER BY t.id
+  `).bind(companyId).all<any>();
+
+  const co = await env.DB.prepare("SELECT * FROM companies WHERE id = ?").bind(companyId).first<any>();
+  if (!co) throw bad("Company not found");
+
+  const companySnapshot = JSON.stringify({
+    id: co.id, displayName: co.display_name, registeredName: co.registered_name,
+    registrationNumber: co.registration_number, vatNumber: co.vat_number,
+    email: co.email, telephone: co.telephone, address: JSON.parse(co.address_json || "[]")
+  });
+
+  const generatedInvoices: Array<{ id: number; number: string; customer: string; amountCents: number }> = [];
+  let skippedCount = 0;
+  let totalGeneratedCents = 0;
+
+  for (const t of templates.results) {
+    const exists = await env.DB.prepare("SELECT id, number FROM documents WHERE recurring_template_id = ? AND recurring_period = ? AND status <> "void"").bind(t.id, period).first<{ id: number; number: string }>();
+    if (exists) {
+      skippedCount++;
+      continue;
+    }
+
+    const numSql = "(SELECT prefix || substr("0000000000000000" || next_value, -width) FROM number_sequences WHERE company_id = ?1 AND kind = "invoice")";
+    const custSnapSql = "(SELECT json_object("name", name, "contact", contact_name, "email", email, "vat", vat_number, "postal", json(postal_address_json), "delivery", json(delivery_address_json)) FROM customers WHERE id = ?2)";
+
+    const insDoc = env.DB.prepare(`
+      INSERT INTO documents (
+        company_id, kind, number, status, customer_id, date, due_date, reference, message, vat_rate,
+        discount_cents, exclusive_cents, tax_cents, total_cents, source, from_number,
+        recurring_template_id, recurring_period, issued_at, customer_snapshot_json, company_snapshot_json
+      )
+      SELECT ?, "invoice", ${numSql}, "issued", ?, ?, ?, ?, ?, (CASE WHEN ? > 0 THEN "0.15" ELSE "0" END),
+        0, ?, ?, ?, "app", ?,
+        ?, ?, strftime("%Y-%m-%dT%H:%M:%fZ","now"), ${custSnapSql}, ?
+      WHERE NOT EXISTS (SELECT 1 FROM documents WHERE recurring_template_id = ? AND recurring_period = ? AND status <> "void")
+      RETURNING id, number
+    `).bind(
+      companyId, t.customer_id, date, dueDate, t.reference, t.message, t.tax_cents,
+      t.exclusive_cents, t.tax_cents, t.total_cents, t.sage_number,
+      t.id, period, companySnapshot, t.id, period
+    );
+
+    const docRes = await insDoc.first<{ id: number; number: string }>();
+    if (!docRes) {
+      skippedCount++;
+      continue;
+    }
+
+    const docId = docRes.id;
+    const invNumber = docRes.number;
+
+    await env.DB.prepare("UPDATE number_sequences SET next_value = next_value + 1 WHERE company_id = ? AND kind = "invoice"").bind(companyId).run();
+
+    const lines = await env.DB.prepare("SELECT * FROM recurring_lines WHERE template_id = ? ORDER BY line_no").bind(t.id).all<any>();
+    const lineStatements: D1PreparedStatement[] = lines.results.map((l: any) =>
+      env.DB.prepare(`
+        INSERT INTO document_lines (
+          document_id, line_no, item_id, description, comments, unit, quantity,
+          unit_price_excl_cents, discount_percent, tax_rate, exclusive_cents, tax_cents, total_cents
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        docId, l.line_no, l.item_id, l.description, l.comments, l.unit, l.quantity,
+        l.unit_price_excl_cents, l.discount_percent, l.tax_rate, l.exclusive_cents, l.tax_cents, l.total_cents
+      )
+    );
+
+    lineStatements.push(env.DB.prepare("UPDATE recurring_templates SET last_run_date = ? WHERE id = ?").bind(date, t.id));
+    lineStatements.push(env.DB.prepare("INSERT INTO audit_events (actor, action, entity, entity_id, detail_json) VALUES (?, "recurring_generated", "document", ?, ?)")
+      .bind(actor, docId, JSON.stringify({ templateId: t.id, period, number: invNumber, total: t.total_cents })));
+
+    await env.DB.batch(lineStatements);
+
+    totalGeneratedCents += t.total_cents;
+    generatedInvoices.push({ id: docId, number: invNumber, customer: t.customer_name, amountCents: t.total_cents });
+  }
+
+  await audit(env, actor, "recurring_batch_completed", "company", 0, {
+    companyId, period, date, generatedCount: generatedInvoices.length, skippedCount, totalCents: totalGeneratedCents
+  }).run();
+
+  return {
+    period,
+    runDate: date,
+    generatedCount: generatedInvoices.length,
+    skippedCount,
+    totalCents: totalGeneratedCents,
+    invoices: generatedInvoices,
+  };
+}
 async function deleteDraft(env: Env, actor: string, id: number) {
   const r = await env.DB.batch([
     env.DB.prepare("DELETE FROM document_lines WHERE document_id = ? AND (SELECT status FROM documents WHERE id = ?) = 'draft'").bind(id, id),
@@ -443,6 +606,10 @@ async function stats(env: Env) {
 
 // ───────── entry ─────────
 export default {
+  async scheduled(event: any, env: Env, ctx: any) {
+    await ensureSchema(env);
+    await runRecurringBatch(env, "system:cron");
+  },
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     if (!url.pathname.startsWith("/api/")) return env.ASSETS.fetch(req);
@@ -482,6 +649,14 @@ export default {
       if (p[0] === "items") {
         if (m === "POST" && id === undefined) return await saveItem(env, actor, await body<ItemIn>(req));
         if (m === "PUT" && id !== undefined) return await saveItem(env, actor, await body<ItemIn>(req), id);
+      }
+      if (p[0] === "recurring" && p[1] === "preview" && m === "GET") {
+        const co = url.searchParams.get("company") ?? "logia-services";
+        return json(await previewRecurringRun(env, co, url.searchParams.get("date") ?? undefined));
+      }
+      if (p[0] === "recurring" && p[1] === "run" && m === "POST") {
+        const b = await body<{ companyId?: string; date?: string }>(req);
+        return json(await runRecurringBatch(env, actor, b?.companyId ?? "logia-services", b?.date));
       }
       if (p[0] === "import" && p[1] && m === "POST") return await importChunk(env, actor, p[1], await body(req));
       throw new HttpError(404, "Not found");

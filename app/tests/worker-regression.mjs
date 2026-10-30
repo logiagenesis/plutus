@@ -130,6 +130,20 @@ ok("emailing requires valid recipient email", (await call(env, "documents/" + in
 r = await call(env, "documents/" + inv.id + "/send", "POST", { toEmail: "client@example.com", ccEmail: "accounts@logia.co.za" });
 ok("email sent, recorded in history and document state updated", r.status === 200 && r.body.emails.length === 1 && r.body.sent_to === "client@example.com" && !!r.body.sent_at);
 
+// Piece 3: Automated Recurring Batch
+db.db.exec("INSERT INTO recurring_templates (company_id, customer_id, frequency, start_date, active, exclusive_cents, tax_cents, total_cents) VALUES ('logia-services', 1, 'monthly', '2026-01-25', 1, 1000, 0, 1000)");
+const tmplId = db.db.prepare("SELECT last_insert_rowid() AS id").get().id;
+db.db.exec(`INSERT INTO recurring_lines (template_id, line_no, description, quantity, unit_price_excl_cents, exclusive_cents, tax_cents, total_cents) VALUES (${tmplId}, 1, 'Monthly Service', '1', 1000, 1000, 0, 1000)`);
+
+let prev = await call(env, "recurring/preview?company=logia-services&date=2026-11-25");
+ok("recurring preview shows due template", prev.status === 200 && prev.body.dueCount === 1 && prev.body.projectedTotalCents === 1000);
+
+let recRun = await call(env, "recurring/run", "POST", { companyId: "logia-services", date: "2026-11-25" });
+ok("recurring run generates invoice", recRun.status === 200 && recRun.body.generatedCount === 1 && recRun.body.invoices.length === 1);
+
+let recRunAgain = await call(env, "recurring/run", "POST", { companyId: "logia-services", date: "2026-11-25" });
+ok("re-running recurring batch in same month skips existing (0 duplicates)", recRunAgain.status === 200 && recRunAgain.body.generatedCount === 0 && recRunAgain.body.skippedCount === 1);
+
 // F08: clearing a password (reset) ends existing sessions
 db.db.prepare("UPDATE users SET password_hash=NULL WHERE id=1").run();
 ok("session invalid after password reset", (await call(env, "bootstrap")).status === 401);
