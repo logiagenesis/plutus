@@ -16,9 +16,12 @@ export type Doc = {
   amountDueCents: number | null; sageStatus: string | null; fromDocument: string | null; lines: Line[];
   firstLine?: string | null; lineCount?: number; version: number; message?: string | null; vat?: boolean;
   source?: "app" | "sage"; paidCents?: number; payments?: Payment[];
+  sentAt?: string | null; sentTo?: string | null; emails?: EmailMessage[];
   customerSnapshot?: Snapshot | null; companySnapshot?: CompanySnapshot | null;
 };
 export type Payment = { id: number; date: string; amountCents: number; method: string | null; reference: string | null; note: string | null; createdBy: string; createdAt: string; voidedAt: string | null };
+export type EmailMessage = { id: number; recipientEmail: string; ccEmail: string | null; subject: string; status: string; providerId: string | null; createdBy: string; createdAt: string };
+const mapEmail = (e: any): EmailMessage => ({ id: e.id, recipientEmail: e.recipient_email, ccEmail: e.cc_email, subject: e.subject, status: e.status, providerId: e.provider_id, createdBy: e.created_by, createdAt: e.created_at });
 export type Snapshot = { name: string; contact: string | null; email: string | null; vat: string | null; postal: string[] | null; delivery: string[] | null };
 export type CompanySnapshot = { id: string; displayName: string; registeredName: string | null; registrationNumber: string | null; vatNumber: string | null; email: string | null; telephone: string | null; address: string[] | null };
 const parseObj = <T,>(s: unknown): T | null => { if (typeof s !== "string" || !s) return null; try { return JSON.parse(s) as T; } catch { return null; } };
@@ -61,6 +64,8 @@ export const mapDoc = (d: any): Doc => ({
   message: d.message, vat: d.vat_rate ? d.vat_rate !== "0" : (d.tax_cents ?? 0) > 0,
   source: d.source, payments: Array.isArray(d.payments) ? d.payments.map(mapPayment) : undefined,
   paidCents: Array.isArray(d.payments) ? d.payments.filter((p: any) => !p.voided_at).reduce((a: number, p: any) => a + p.amount_cents, 0) : (d.paid_cents ?? 0),
+  sentAt: d.sent_at ?? null, sentTo: d.sent_to ?? null,
+  emails: Array.isArray(d.emails) ? d.emails.map(mapEmail) : undefined,
   customerSnapshot: parseObj<Snapshot>(d.customer_snapshot_json), companySnapshot: parseObj<CompanySnapshot>(d.company_snapshot_json),
 });
 
@@ -138,7 +143,7 @@ export function invoiceStatus(d: Doc): { label: string; tone: Tone } {
   if (paid > 0) return { label: "Part paid", tone: "info" };
   if (d.sageStatus === "Paid") return { label: "Paid", tone: "ok" };
   if (d.sageStatus === "Partially Paid") return { label: "Part paid", tone: "info" };
-  if (d.source === "app") return d.dueDate && d.dueDate < todayISO() ? { label: "Overdue", tone: "bad" } : { label: "Unpaid", tone: "warn" };
+  if (d.source === "app") return d.dueDate && d.dueDate < todayISO() ? { label: "Overdue", tone: "bad" } : d.sentAt ? { label: "Sent (Unpaid)", tone: "warn" } : { label: "Issued", tone: "plain" };
   return { label: "Not checked", tone: "plain" };
 }
 export function quoteStatus(d: Doc): { label: string; tone: Tone } {
@@ -146,6 +151,6 @@ export function quoteStatus(d: Doc): { label: string; tone: Tone } {
   if (d.sageStatus === "Invoiced") return { label: "Accepted", tone: "ok" };
   if (d.sageStatus === "Pending") return { label: "Waiting for customer", tone: "info" };
   if (d.sageStatus === "Expired") return { label: "Expired", tone: "plain" };
-  if (!d.sageStatus) return { label: "Issued", tone: "info" }; // "Sent" only once emailing exists and an email actually went out
+  if (!d.sageStatus) return d.sentAt ? { label: "Sent", tone: "ok" } : { label: "Issued", tone: "info" };
   return { label: d.sageStatus, tone: "plain" };
 }

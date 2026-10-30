@@ -8,6 +8,8 @@ export type Env = {
   DEV_BYPASS?: string;         // "1" only in local development (.dev.vars), never in production
   RESTORE_ENABLED?: string;    // "1" only while moving Plutus to a new account (restore into a blank database)
   RESTORE_CODE?: string;       // Cloudflare secret, set by the owner only for the restore; restore is off without it
+  RESEND_API_KEY?: string;     // Transactional email API key (e.g. from Resend or Postmark)
+  EMAIL_FROM?: string;         // Default sender address (defaults to accounts@logia.co.za)
 };
 
 type Jwk = JsonWebKey & { kid: string };

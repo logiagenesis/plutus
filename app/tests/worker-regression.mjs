@@ -124,6 +124,12 @@ ok("list shows paid amount", boot.paid_cents === 10000 && boot.source === "app")
 r = await call(env, "documents/" + inv.id + "/payments/" + r.body.payments[1].id, "DELETE");
 ok("payment removed (kept, marked void)", r.status === 200 && r.body.payments.filter((p) => !p.voided_at).length === 1);
 
+// Piece 2: Outbound emailing
+ok("emailing a draft is refused", (await call(env, "documents/" + (await call(env, "documents", "POST", doc)).body.id + "/send", "POST", { toEmail: "client@example.com" })).status === 400);
+ok("emailing requires valid recipient email", (await call(env, "documents/" + inv.id + "/send", "POST", { toEmail: "invalid-email" })).status === 400);
+r = await call(env, "documents/" + inv.id + "/send", "POST", { toEmail: "client@example.com", ccEmail: "accounts@logia.co.za" });
+ok("email sent, recorded in history and document state updated", r.status === 200 && r.body.emails.length === 1 && r.body.sent_to === "client@example.com" && !!r.body.sent_at);
+
 // F08: clearing a password (reset) ends existing sessions
 db.db.prepare("UPDATE users SET password_hash=NULL WHERE id=1").run();
 ok("session invalid after password reset", (await call(env, "bootstrap")).status === 401);

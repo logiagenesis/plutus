@@ -111,6 +111,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "issue" | "delete">("");
   const [confirm, setConfirm] = useState<"" | "issue" | "delete">("");
+  const [emailing, setEmailing] = useState(false);
   useEffect(() => {
     let live = true;
     api<any>(`documents/${Number(id)}`).then((d) => live && setDoc(mapDoc(d))).catch((e) => live && (e.status === 404 ? setDoc("missing") : setLoadErr(e.message)));
@@ -160,6 +161,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
             </>
           ) : (
             <>
+              <button className="btn" type="button" onClick={() => setEmailing(true)} title={`Email ${label} to customer`}><I.mail />Email {label}</button>
               {kind === "quote" && <a className="btn primary" href={`#/invoices/new?from=${d.sageId}`}><I.invoice />Turn into invoice</a>}
               <a className="btn" href={`#/${base}/new?from=${d.sageId}`}><I.copy />Copy</a>
             </>
@@ -190,6 +192,9 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
         </div>
       )}
       {err && <div className="notice" style={{ marginBottom: 16 }}><I.alert /><div><strong>That didn’t work</strong><p>{err}</p></div></div>}
+      {emailing && (
+        <EmailModal d={d} kind={kind} onClose={() => setEmailing(false)} onSent={async (nd) => { setDoc(nd); await reload(); }} />
+      )}
       <div className="detail">
         <div><Paper kind={kind} number={isDraft ? "Draft" : d.number} date={d.date} dueDate={d.dueDate} reference={d.reference}
           customerSageId={d.customerSageId} lines={d.lines} exclusiveCents={d.exclusiveCents}
@@ -207,6 +212,24 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
             </dl>
           </section>
           {kind === "invoice" && !isDraft && <Payments d={d} onChange={async (nd) => { setDoc(nd); await reload(); }} />}
+          {d.emails && d.emails.length > 0 && (
+            <section className="glass">
+              <div className="panel-head"><h2>Email History</h2></div>
+              <ul className="pay-list" style={{ listStyle: "none", margin: 0, padding: "0 18px 14px" }}>
+                {d.emails.map((e) => (
+                  <li key={e.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--hair-2)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: 600 }}>{e.recipientEmail}</span>
+                      <Pill tone={e.status === "sent" ? "ok" : "warn"}>{e.status}</Pill>
+                    </div>
+                    <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                      {fmtDate(e.createdAt.slice(0, 10))} by {e.createdBy}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {isDraft && <button className="btn ghost" onClick={() => setConfirm("delete")} style={{ alignSelf: "flex-start" }}><I.trash />Delete draft</button>}
           {c && (
             <a className="glass tile interactive" href={`#/customers/${c.sageId}`} style={{ display: "block", padding: 18 }}>
@@ -286,5 +309,69 @@ function Payments({ d, onChange }: { d: Doc; onChange: (d: Doc) => Promise<void>
         )}
       </div>
     </section>
+  );
+}
+
+
+function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose: () => void; onSent: (d: Doc) => Promise<void> }) {
+  const { notify } = useApp();
+  const co = d.companySnapshot ?? data.companies.find((c) => c.id === data.companyId) ?? data.companies[0];
+  const c = d.customerSageId ? customersById.get(d.customerSageId) : undefined;
+  const label = kind === "invoice" ? "Invoice" : "Quotation";
+  const defSubject = `${label} ${d.number} from ${co.displayName}`;
+  const totalStr = rand(d.totalCents);
+  const defBody = `Dear ${c?.name ?? "Customer"},\n\nPlease find attached ${label} ${d.number} for ${totalStr}.\n\nPlease contact us should you have any queries.\n\nRegards,\n${co.displayName}`;
+
+  const [toEmail, setToEmail] = useState(c?.email ?? "");
+  const [ccEmail, setCcEmail] = useState(co.email ?? "accounts@logia.co.za");
+  const [subject, setSubject] = useState(defSubject);
+  const [message, setMessage] = useState(defBody);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function send(e: React.FormEvent) {
+    e.preventDefault();
+    if (!toEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail.trim())) {
+      setErr("Enter a valid recipient email address.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await api<any>(`documents/${d.sageId}/send`, {
+        method: "POST",
+        body: { toEmail: toEmail.trim(), ccEmail: ccEmail.trim() || null, subject, message },
+      });
+      const nd = mapDoc(res);
+      notify(`${label} ${d.number} sent to ${toEmail.trim()}`);
+      onClose();
+      await onSent(nd);
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : String(x));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="notice info" style={{ marginBottom: 18 }} role="dialog" aria-labelledby="em-h">
+      <I.mail />
+      <div style={{ flex: 1 }}>
+        <strong id="em-h">Email {label} {d.number} to Customer</strong>
+        <p className="muted" style={{ marginTop: 2 }}>Sends from {co.email ?? "accounts@logia.co.za"} with delivery logged in history.</p>
+        <form className="stack" onSubmit={send} style={{ marginTop: 14 }}>
+          <div className="form-row">
+            <label className="field"><span>Recipient Email</span><input className="input" type="email" required value={toEmail} onChange={(e) => setToEmail(e.target.value)} placeholder="customer@example.com" /></label>
+            <label className="field"><span>CC Email</span><input className="input" type="email" value={ccEmail} onChange={(e) => setCcEmail(e.target.value)} placeholder="accounts@logia.co.za" /></label>
+          </div>
+          <label className="field"><span>Subject</span><input className="input" required value={subject} onChange={(e) => setSubject(e.target.value)} /></label>
+          <label className="field"><span>Message Body</span><textarea className="input" rows={6} value={message} onChange={(e) => setMessage(e.target.value)} style={{ height: "auto" }} /></label>
+          {err && <p className="auth-err" role="alert">{err}</p>}
+          <div className="toolbar" style={{ marginTop: 8 }}>
+            <button className="btn primary small" type="submit" disabled={busy}>{busy ? "Sending…" : `Send ${label}`}</button>
+            <button className="btn ghost small" type="button" onClick={onClose} disabled={busy}>Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

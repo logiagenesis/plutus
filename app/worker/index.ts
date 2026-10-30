@@ -107,7 +107,7 @@ async function bootstrap(env: Env, url: URL) {
     env.DB.prepare("SELECT id, code, description, category, unit, price_excl_cents, active, version FROM items WHERE company_id = ? ORDER BY description").bind(company),
     env.DB.prepare("SELECT * FROM recurring_templates WHERE company_id = ?").bind(company),
     env.DB.prepare("SELECT l.* FROM recurring_lines l JOIN recurring_templates t ON t.id = l.template_id WHERE t.company_id = ? ORDER BY l.template_id, l.line_no").bind(company),
-    env.DB.prepare(`SELECT d.id, d.kind, d.number, d.status, d.customer_id, d.date, d.due_date, d.reference, d.tax_cents, d.total_cents, d.sage_status, d.from_number, d.version, d.source,
+    env.DB.prepare(`SELECT d.id, d.kind, d.number, d.status, d.customer_id, d.date, d.due_date, d.reference, d.tax_cents, d.total_cents, d.sage_status, d.from_number, d.version, d.source, d.sent_at, d.sent_to,
         (SELECT description FROM document_lines WHERE document_id = d.id AND line_no = 1) AS first_line,
         (SELECT COUNT(*) FROM document_lines WHERE document_id = d.id) AS line_count,
         (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL) AS paid_cents
@@ -118,13 +118,14 @@ async function bootstrap(env: Env, url: URL) {
 }
 
 async function getDocument(env: Env, id: number, extra: Record<string, unknown> = {}) {
-  const [d, lines, pays] = await env.DB.batch([
+  const [d, lines, pays, ems] = await env.DB.batch([
     env.DB.prepare("SELECT * FROM documents WHERE id = ?").bind(id),
     env.DB.prepare("SELECT * FROM document_lines WHERE document_id = ? ORDER BY line_no").bind(id),
     env.DB.prepare("SELECT id, date, amount_cents, method, reference, note, created_by, created_at, voided_at, voided_by FROM payments WHERE document_id = ? ORDER BY date, id").bind(id),
+    env.DB.prepare("SELECT id, recipient_email, cc_email, subject, status, provider_id, created_by, created_at FROM email_messages WHERE document_id = ? ORDER BY id DESC").bind(id),
   ]);
   if (!d.results[0]) throw new HttpError(404, "Document not found");
-  return json({ ...d.results[0], lines: lines.results, payments: pays.results, ...extra });
+  return json({ ...d.results[0], lines: lines.results, payments: pays.results, emails: (ems?.results ?? []), ...extra });
 }
 
 async function createDocument(env: Env, actor: string, d: DocIn) {
@@ -252,6 +253,80 @@ async function voidPayment(env: Env, actor: string, docId: number, paymentId: nu
   const r = await env.DB.prepare("UPDATE payments SET voided_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), voided_by = ? WHERE id = ? AND document_id = ? AND voided_at IS NULL").bind(actor, paymentId, docId).run();
   if (r.meta.changes !== 1) throw new HttpError(409, "That payment was not found or was already removed.");
   await audit(env, actor, "payment_void", "document", docId, { paymentId }).run();
+  return getDocument(env, docId);
+}
+
+type SendIn = { toEmail?: string; ccEmail?: string | null; subject?: string; message?: string };
+
+async function sendDocument(env: Env, actor: string, docId: number, s: SendIn) {
+  const d = await env.DB.prepare(`SELECT d.id, d.company_id, d.kind, d.number, d.status, d.date, d.due_date, d.total_cents,
+      c.display_name AS company_name, c.email AS company_email,
+      cust.name AS customer_name, cust.email AS customer_email
+    FROM documents d
+    JOIN companies c ON c.id = d.company_id
+    JOIN customers cust ON cust.id = d.customer_id
+    WHERE d.id = ?`).bind(docId).first<{
+      id: number; company_id: string; kind: string; number: string; status: string; date: string; due_date: string | null; total_cents: number;
+      company_name: string; company_email: string | null; customer_name: string; customer_email: string | null;
+    }>();
+  if (!d) throw new HttpError(404, "Document not found");
+  if (d.status !== "issued") throw bad("Only issued documents can be emailed");
+
+  const to = str(s.toEmail || d.customer_email, 200);
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw bad("Enter a valid recipient email address");
+  const cc = s.ccEmail !== undefined ? (str(s.ccEmail, 200) || null) : (d.company_email || "accounts@logia.co.za");
+  if (cc && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cc)) throw bad("Enter a valid CC email address");
+
+  const label = d.kind === "invoice" ? "Invoice" : d.kind === "quote" ? "Quotation" : "Credit Note";
+  const defSubject = `${label} ${d.number} from ${d.company_name}`;
+  const subject = str(s.subject || defSubject, 200) || defSubject;
+
+  const totalStr = "R " + (d.total_cents / 100).toFixed(2);
+  const defMsg = s.message ? str(s.message, 4000) : `Dear ${d.customer_name},\n\nPlease find attached ${label} ${d.number} for ${totalStr}.\n\nPlease contact us should you have any queries.\n\nRegards,\n${d.company_name}`;
+  const bodyText = defMsg;
+
+  let providerId: string | null = null;
+  let status = "sent";
+
+  // Dispatch via Resend API if API key is present in Worker secrets
+  if (env.RESEND_API_KEY) {
+    try {
+      const fromEmail = env.EMAIL_FROM || "accounts@logia.co.za";
+      const fromHeader = `${d.company_name} <${fromEmail}>`;
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromHeader,
+          to: [to],
+          ...(cc ? { cc: [cc] } : {}),
+          reply_to: d.company_email || "accounts@logia.co.za",
+          subject,
+          text: bodyText,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { id?: string };
+        providerId = data?.id ?? null;
+      } else {
+        status = "queued";
+      }
+    } catch {
+      status = "queued";
+    }
+  }
+
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO email_messages (company_id, document_id, recipient_email, cc_email, subject, body_text, status, provider_id, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(d.company_id, docId, to, cc, subject, bodyText, status, providerId, actor),
+    env.DB.prepare(`UPDATE documents SET sent_at = strftime(%Y-%m-%dT%H:%M:%fZ,now), sent_to = ? WHERE id = ?`).bind(to, docId),
+    env.DB.prepare(`INSERT INTO audit_events (actor, action, entity, entity_id, detail_json)
+      VALUES (?, email_sent, document, ?, ?)`).bind(actor, docId, JSON.stringify({ to, cc, subject, status, providerId })),
+  ]);
+
   return getDocument(env, docId);
 }
 
@@ -394,6 +469,7 @@ export default {
         if (m === "POST" && id === undefined) return await createDocument(env, actor, await body<DocIn>(req));
         if (id !== undefined && p[2] === "payments" && !p[3] && m === "POST") return await addPayment(env, actor, id, await body<PaymentIn>(req));
         if (id !== undefined && p[2] === "payments" && p[3] && /^\d{1,15}$/.test(p[3]) && m === "DELETE") return await voidPayment(env, actor, id, Number(p[3]));
+        if (id !== undefined && p[2] === "send" && m === "POST") return await sendDocument(env, actor, id, await body<SendIn>(req));
         if (id !== undefined && p[2] === "issue" && m === "POST") return await issueDocument(env, actor, id, (await body<{ version: number }>(req)).version);
         if (id !== undefined && m === "GET") return await getDocument(env, id);
         if (id !== undefined && m === "PUT") return await updateDocument(env, actor, id, await body<DocIn>(req));
