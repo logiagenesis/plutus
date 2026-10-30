@@ -34,7 +34,8 @@ Tested end to end on two local instances (945 documents, 3,150 lines): all table
 
 ## Still to do
 - New account: create D1 "plutus", connect Workers Builds to logiagenesis/plutus (root /app), point wrangler.jsonc at the new database with RESTORE_ENABLED "1".
-- Dennis restores (the password step is his).
+- Dennis adds a RESTORE_CODE secret to the new Worker (exact clicks to be given from a screenshot of his dashboard), then restores with the backup file, his Plutus password and that code (all steps are his).
+- After the restore: remove RESTORE_ENABLED and delete the RESTORE_CODE secret.
 - Verify counts against the numbers above, then remove RESTORE_ENABLED and the old Access settings.
 - Disconnect the old account's build so it stops deploying; keep the old Worker and database until Dennis says to delete them.
 - Update the monthly audit task, 00_START_HERE.md, ledger, Drive and Claude Folder.
