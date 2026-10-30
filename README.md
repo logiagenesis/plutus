@@ -1,11 +1,11 @@
 # Plutus
 
-Internal Logi-Ink finance application. Application source, Cloudflare Worker code and a SQL migration are present in this repository.
+Logi-Ink's in-house invoicing app, built to replace Sage Business Cloud Accounting. React + TypeScript front end and a Cloudflare Worker API on a D1 (SQLite) database, in app/.
 
-Cloudflare Worker address: https://plutus.denweb82.workers.dev . Hosting configuration was verified on 28 October 2026; application workflows were not retested during the documentation repair.
+Start here: [docs/00_START_HERE.md](docs/00_START_HERE.md) · What lives where: [docs/23_REPOSITORY_MAP.md](docs/23_REPOSITORY_MAP.md) · Latest work: [docs/21_AUDIT_FIXES_2026-10-30.md](docs/21_AUDIT_FIXES_2026-10-30.md)
 
-[Current project record](docs/00_START_HERE.md) · [Drive inventory](docs/17_DRIVE_FILE_INDEX.md) · [Archive gaps and reconciliation](docs/16_ARCHIVE_RECONCILIATION_2026-10-28.md) · [Build prompt](docs/06_MASTER_BUILD_PROMPT.md)
+Google Drive project (private, holds the customer data, backups and originals): https://drive.google.com/drive/folders/19wJFooMd-9_11eNlf5antaifsXl4J3RL
 
-[Google Drive project](https://drive.google.com/drive/folders/19wJFooMd-9_11eNlf5antaifsXl4J3RL)
+Build and test (from app/): npm ci, then npm run build and npm test. Every push to main deploys through Cloudflare Workers Builds (root /app).
 
-Historical planning documents are dated snapshots. The five references are source context, not approved specifications. Private Sage exports remain in Drive. Archive completeness and production readiness are not claimed.
+Customer data, Sage exports and backups are never committed (see .gitignore). Production readiness is not claimed: Sage is still the live system until a full recurring run from Plutus has been checked against it.

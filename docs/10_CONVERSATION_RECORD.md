@@ -86,6 +86,12 @@ No later user message in this record approves invented business details, a paid 
 
 17. Dennis pointed out that the app's sign-in was his Cloudflare account login, which he did not know, and that Plutus must have its own login. Claude agreed this was its own mistake. Dennis chose his own email-and-password login for info@logia.co.za. He posted a password in chat; it was not used, and he sets his own on a one-time screen.
 
+## 30 October 2026 — audit review, plan to replace Sage, repository clean-up
+18. Dennis shared Plutus-Comprehensive-Audit-2026-10-30.md and asked what Claude thought. Claude checked two claims live: the repository is public, and RESTORE_ENABLED was still "1" on main.
+19. Dennis said he wants to cancel his Sage subscription and start testing. Requirements he gave: banking details on every outgoing document by default with no message to add (use the existing Sage quotes, invoices and recurring invoices as the model); mimic Sage more, with a funkier, fresher look; fix the issues found; think about practicality and reliability; an SMTP server so documents send straight from Plutus; recurring invoices must go out by themselves on their date; any invoice can be sent from inside the app.
+20. Claude proposed the plan (Sage stays on until a Plutus recurring run matches). Dennis said "Lets get started". Round 1 was done (see 21).
+21. Dennis asked for everything to be in Google Drive as well: scan Drive, find what is missing, fix and sort it, and keep a comprehensive, realistic repository in both Google Drive and GitHub (see 23).
+
 ## Record boundaries
 Internal reasoning, credentials, signed download URLs and unrelated private account data are excluded.
 There is no claim to have exported unavailable old chats. The three original AI transcripts in Drive are source documents, not evidence that all their cited external research was completed.

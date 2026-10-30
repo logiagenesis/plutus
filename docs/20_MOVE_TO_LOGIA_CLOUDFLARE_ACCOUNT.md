@@ -28,6 +28,10 @@ Tested end to end on two local instances (945 documents, 3,150 lines): all table
 - ~10:28 Backup downloaded from plutus.denweb82.workers.dev in Dennis's Chrome (with his OK): 4,399 rows from 13 tables. Matches the live database counts (users 1, customers 112, items 212, documents 945, document lines 3,076, recurring templates 16, recurring lines 24, companies 2, number sequences 6, audit events 2, import batches 1, migrations 2; sessions excluded).
 - Blocked: both Chrome windows connected to Claude are signed in to Cloudflare as denweb82@gmail.com, which can't open the new account until it accepts the pending invite. Re-checked 10:36: still no access.
 
+## Status on 30 Oct 2026
+- e7c486c pointed wrangler.jsonc at the new database with RESTORE_ENABLED "1". 0788836 made restore also need a RESTORE_CODE secret, so the switch alone no longer opens restore.
+- Whether the new account's Worker exists, builds from GitHub and was restored is not verified: Claude's Cloudflare connector reaches only the old account. Old database unchanged since 27 Oct (945 documents). Waiting on Dennis.
+
 ## Still to do
 - New account: create D1 "plutus", connect Workers Builds to logiagenesis/plutus (root /app), point wrangler.jsonc at the new database with RESTORE_ENABLED "1".
 - Dennis restores (the password step is his).

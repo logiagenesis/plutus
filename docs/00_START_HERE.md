@@ -1,11 +1,12 @@
-# Plutus — start here (current as of 28 October 2026)
+# Plutus — start here (updated 30 October 2026)
 
 Plutus is the Logi-Ink in-house replacement for Sage Business Cloud Accounting. It invoices as Logia Services (Pty) Ltd now; Logi-Ink (Pty) Ltd is waiting for its company details.
 
 ## Where everything lives
 - Live app: https://plutus.denweb82.workers.dev — its own login, user info@logia.co.za (see 19_OWN_LOGIN.md)
 - Code and docs: https://github.com/logiagenesis/plutus (PUBLIC as of 30 Oct 2026 — Dennis to switch to private). Every push to main builds and deploys automatically (Cloudflare Workers Builds, root /app).
-- Cloudflare: Worker "plutus", D1 database "plutus" (d0ce91f8-0ae6-4844-99a8-846ed46caaf6), account ddcd0a9eefadc42e5826dcbc4ef94cd4, Access team https://denweb.cloudflareaccess.com.
+- Cloudflare (old account, denweb82@gmail.com): Worker "plutus", D1 database "plutus" (d0ce91f8-0ae6-4844-99a8-846ed46caaf6), account ddcd0a9eefadc42e5826dcbc4ef94cd4, Access team https://denweb.cloudflareaccess.com.
+- Cloudflare (new account, dennis@logia.co.za, since 28 Oct): account 8cabaf8ffc36147476b494c0cc35a34e, D1 9230a0e5-1102-4ea4-813e-92867f1a3d89. wrangler.jsonc on main points here. Restore and Worker state not verified by Claude (see 20 and 21).
 - Drive: shared drive Google Desktop › Plutus (folder 19wJFooMd-9_11eNlf5antaifsXl4J3RL). Customer data lives only here (04_Data), never in GitHub.
 - Logo: brand/ in GitHub and Drive 03_Development/05_Brand (official PLU+US files from Dennis).
 - Monthly audit: scheduled task "Plutus monthly audit (22nd, before recurring run)", 05:00 SAST on the 22nd.
@@ -13,6 +14,7 @@ Plutus is the Logi-Ink in-house replacement for Sage Business Cloud Accounting. 
 ## What works today (verified 28 Oct 2026)
 - All Sage data is in the live database: 112 customers, 212 items, 16 recurring invoices, 625 invoices (R 1,170,054.45), 317 quotes, 3 credit notes. Next numbers: INV00006946, QUO001302, CRN0000125.
 - Create, save and issue invoices and quotes (numbers assigned on issue), add and edit customers and items, import from Sage.
+- From commit 0788836 (30 Oct): audit fixes F01–F04, F08, F10, F11, F15 and manual payments on invoices (see 21).
 
 ## Not built yet
 Sending email from accounts@logia.co.za, PDF download, bank statement (FNB CSV) import and matching, the automatic recurring run on the 25th (Sage still sends these), nightly backup to Drive, Logi-Ink setup, editing company settings.
@@ -22,8 +24,11 @@ Sending email from accounts@logia.co.za, PDF download, bank statement (FNB CSV) 
 - Logi-Ink details: registration and VAT numbers, bank details, logo use, sender address, last invoice number.
 - FNB statement CSV exports for building the bank matching.
 
+## Plan to replace Sage (agreed 30 Oct 2026)
+Sage stays on until one recurring run sent by Plutus matches Sage exactly. Phases: 0 close open doors, 1 audit fixes + payments (done), 2 Sage-style documents with banking details + PDF, 3 email from accounts@logia.co.za, 4 automatic recurring run, 5 fresher look, 6 reliability (backups, tests, alerts), 7 November test, 25 Nov parallel run, December live, then cancel Sage after a full export.
+
 ## Read next
-21_AUDIT_FIXES_2026-10-30.md (latest: audit fixes and payments, 30 Oct 2026).
+23_REPOSITORY_MAP.md (what lives where, GitHub and Drive). 21_AUDIT_FIXES_2026-10-30.md (latest work). 22_SCHEDULED_AUDIT_SETUP_2026-10-27.md (monthly audit).
 10_CONVERSATION_RECORD.md (what Dennis asked and decided), 11_ACTION_AND_EVIDENCE_LEDGER.md (what was done and how it was checked), 14_SAGE_IMPORT_REPORT.md, 15_MILESTONE1_PROTOTYPE.md, 18_BRAND_PLUTUS.md, 19_OWN_LOGIN.md, 17_DRIVE_FILE_INDEX.md.
 
 ---

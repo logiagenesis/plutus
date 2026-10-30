@@ -101,5 +101,16 @@ This ledger and the conversation record cover available current-session material
 - Built Plutus's own login (19_OWN_LOGIN.md): users and sessions tables (migration 0002, applied to the live database through the Cloudflare connector), sign-in, one-time setup, sign-out, change password, lockout, audit.
 - Tested on a local copy (results in 19_OWN_LOGIN.md). Live: database tables created; first password to be set by Dennis; Cloudflare sign-in to be switched off after that.
 
+## 30 October 2026 — audit fixes and payments
+- Verified live before changing anything: GitHub reports the repository as public; wrangler.jsonc on main had RESTORE_ENABLED "1". Old D1 (d0ce91f8): 945 documents, 112 customers, last document change 2026-10-27T19:57:56Z, 1 user.
+- Commit 0788836 pushed to main: fixes and tests listed in 21_AUDIT_FIXES_2026-10-30.md. Checks run: npm run build (app and Worker type-checks, Vite build), vitest (7 passed, 1 skipped), tests/worker-regression.mjs (33 checks, synthetic data). SQL used by the new schema check and the atomic lockout (RETURNING) was run read-only against the old D1 and succeeded.
+- Not verified: the dennis@logia.co.za Cloudflare account (connector only reaches the old account).
+
+## 30 October 2026 — Drive and GitHub repository clean-up
+- Inventory: every file in the Drive Plutus folder tree was listed; every Drive copy of a numbered doc was downloaded and compared byte-for-byte with GitHub. 17 matched. Out of date in Drive: 00, 10, 11, 20. Drive-only: scheduled audit setup note, 00_ARCHIVE_INDEX.md (identical to 17), the 28 Oct backup file, the original LOGO folder, today's audit report. GitHub-only: README.md, app/ source, scripts/sage, tests.
+- Drive connector limit found: it can create files and folders in the Plutus shared drive but cannot move, rename or delete them ("The caller does not have permission"). So current versions were added with a _2026-10-30 suffix and the old copies are listed in 23 for Dennis to drag into 00_Project_Control/_Superseded.
+- Created in Drive: 00_Project_Control/Audits, 00_Project_Control/_Superseded, 04_Data/Backups, 05_Source_Code. Copied the audit report into Audits.
+- GitHub: account number in docs/14 replaced with its last 4 digits (full number stays in the private Drive copy; git history still contains it until the repository is private). Added docs/22 (scheduled audit setup, from Drive) and docs/23 (repository map). The full audit report is not added to GitHub while the repository is public, because it describes how to attack the app.
+
 ## Ongoing documentation rule
 For every substantive project round, preserve requests, decisions, sources, code/config changes, verification results, failures, unresolved work and artifact locations in GitHub and the organised Drive project. Include reviewable screenshots/test evidence when those artifacts exist. Never claim an unsaved or unverified copy exists.
