@@ -109,6 +109,7 @@ export function RestoreScreen({ onDone }: { onDone: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -119,8 +120,8 @@ export function RestoreScreen({ onDone }: { onDone: () => void }) {
     try {
       const { restoreBackup } = await import("../backup");
       const b = JSON.parse(await file.text());
-      await restoreBackup(b, email, password, setStatus);
-      setPassword(""); setStatus("Done. Every table matches the backup. Sign in with your usual Plutus password.");
+      await restoreBackup(b, email, password, code, setStatus);
+      setPassword(""); setCode(""); setStatus("Done. Every table matches the backup. Sign in with your usual Plutus password.");
       setTimeout(onDone, 1500);
     } catch (x) { setErr(x instanceof SyntaxError ? "That file is not a Plutus backup." : msg(x)); setBusy(false); }
   };
@@ -133,6 +134,8 @@ export function RestoreScreen({ onDone }: { onDone: () => void }) {
           <input id="r-email" className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
         <label className="field" htmlFor="r-pass"><span>Plutus password</span>
           <input id="r-pass" className="input" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+        <label className="field" htmlFor="r-code"><span>Restore code (the RESTORE_CODE secret you set in Cloudflare)</span>
+          <input id="r-code" className="input" type="password" autoComplete="off" required value={code} onChange={(e) => setCode(e.target.value)} /></label>
         {status && <p className="faint" role="status">{status}</p>}
         {err && <p className="auth-err" role="alert">{err}</p>}
         <button className="btn primary" type="submit" disabled={busy}>{busy ? "Restoring…" : "Restore"}</button>

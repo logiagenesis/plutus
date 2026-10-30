@@ -122,13 +122,17 @@ async function insertRows(env: Env, table: string, rows: unknown) {
 }
 
 export async function handleRestore(req: Request, env: Env, path: string): Promise<Response> {
-  const enabled = env.RESTORE_ENABLED === "1";
+  // Restore needs BOTH the switch and a one-time restore code stored as a Cloudflare secret (RESTORE_CODE).
+  // The password inside an uploaded backup can't prove anything on its own: whoever makes the file
+  // chooses that password (audit F02).
+  const enabled = env.RESTORE_ENABLED === "1" && typeof env.RESTORE_CODE === "string" && env.RESTORE_CODE.length >= 16;
   if (path === "state" && req.method === "GET") return json({ enabled, blank: enabled ? await isBlank(env) : false });
   if (!enabled) throw fail("Restore is switched off on this Plutus.", 403);
   if (req.method !== "POST") throw fail("Not found", 404);
   const b = (await req.json()) as Record<string, any>;
 
   if (path === "begin") {
+    if (typeof b.restoreCode !== "string" || !sameHex(await sha256(b.restoreCode), await sha256(env.RESTORE_CODE!))) throw fail("The restore code is wrong.", 401);
     if (!(await isBlank(env))) throw fail("This Plutus already has data. Restore only works on a blank database.", 409);
     if (b.format !== BACKUP_FORMAT || b.version !== BACKUP_VERSION) throw fail("This is not a Plutus backup file.");
     const s = cleanSchema(b.schema);

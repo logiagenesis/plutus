@@ -41,11 +41,11 @@ export function saveFile(b: Backup) {
 const CHUNK = 150;
 
 /** Restores a backup file into a blank Plutus. */
-export async function restoreBackup(b: Backup, email: string, password: string, progress: Progress) {
+export async function restoreBackup(b: Backup, email: string, password: string, restoreCode: string, progress: Progress) {
   if (b?.format !== "plutus-backup" || b.version !== 1) throw new Error("This is not a Plutus backup file.");
   for (const t of b.order) if ((b.tables[t]?.length ?? 0) !== b.counts[t]) throw new Error(`The file looks incomplete (${t}). Download the backup again.`);
   progress("Checking your password and creating the tables…");
-  const begin = await api<{ token: string; order: string[] }>("restore/begin", { method: "POST", body: { format: b.format, version: b.version, schema: b.schema, counts: b.counts, users: b.tables.users ?? [], email, password } });
+  const begin = await api<{ token: string; order: string[] }>("restore/begin", { method: "POST", body: { format: b.format, version: b.version, schema: b.schema, counts: b.counts, users: b.tables.users ?? [], email, password, restoreCode } });
   for (const t of begin.order) {
     if (t === "users" || b.emptyTables.includes(t)) continue;
     const rows = b.tables[t] ?? [];

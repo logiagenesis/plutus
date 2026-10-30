@@ -11,7 +11,7 @@ export default function RecurringPage() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1>Recurring invoices</h1><p className="sub">These go out automatically on the 25th — the same schedule you have in Sage.</p></div>
+        <div><h1>Recurring invoices</h1><p className="sub">Your schedule, copied from Sage. Plutus does not send these yet — Sage still sends them on the 25th until automatic sending is built and tested.</p></div>
       </div>
       <div className="tiles" style={{ marginBottom: 16 }}>
         <div className="glass tile span-4 tile-pad" style={{ minHeight: 0 }}><div className="tile-label"><I.repeat />Every month</div><div className="tile-value num">{rand(monthly)}</div><div className="muted">{data.recurring.filter((r) => r.active && r.frequency === "monthly").length} invoices to {new Set(data.recurring.filter((r) => r.active && r.frequency === "monthly").map((r) => r.customerSageId)).size} customers</div></div>

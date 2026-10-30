@@ -4,7 +4,7 @@ Plutus is the Logi-Ink in-house replacement for Sage Business Cloud Accounting. 
 
 ## Where everything lives
 - Live app: https://plutus.denweb82.workers.dev — its own login, user info@logia.co.za (see 19_OWN_LOGIN.md)
-- Code and docs: https://github.com/logiagenesis/plutus (private). Every push to main builds and deploys automatically (Cloudflare Workers Builds, root /app).
+- Code and docs: https://github.com/logiagenesis/plutus (PUBLIC as of 30 Oct 2026 — Dennis to switch to private). Every push to main builds and deploys automatically (Cloudflare Workers Builds, root /app).
 - Cloudflare: Worker "plutus", D1 database "plutus" (d0ce91f8-0ae6-4844-99a8-846ed46caaf6), account ddcd0a9eefadc42e5826dcbc4ef94cd4, Access team https://denweb.cloudflareaccess.com.
 - Drive: shared drive Google Desktop › Plutus (folder 19wJFooMd-9_11eNlf5antaifsXl4J3RL). Customer data lives only here (04_Data), never in GitHub.
 - Logo: brand/ in GitHub and Drive 03_Development/05_Brand (official PLU+US files from Dennis).
@@ -23,6 +23,7 @@ Sending email from accounts@logia.co.za, PDF download, bank statement (FNB CSV) 
 - FNB statement CSV exports for building the bank matching.
 
 ## Read next
+21_AUDIT_FIXES_2026-10-30.md (latest: audit fixes and payments, 30 Oct 2026).
 10_CONVERSATION_RECORD.md (what Dennis asked and decided), 11_ACTION_AND_EVIDENCE_LEDGER.md (what was done and how it was checked), 14_SAGE_IMPORT_REPORT.md, 15_MILESTONE1_PROTOTYPE.md, 18_BRAND_PLUTUS.md, 19_OWN_LOGIN.md, 17_DRIVE_FILE_INDEX.md.
 
 ---

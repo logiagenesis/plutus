@@ -1,4 +1,4 @@
-import { data, customersById, fmtDate } from "../data";
+import { data, customersById, fmtDate, type Snapshot, type CompanySnapshot } from "../data";
 import { rand } from "../money";
 
 export type PaperLine = { description: string; comments?: string | null; quantity: string; unitPriceExclCents: number; discountPercent: string; taxRate: string; exclusiveCents: number; taxCents: number; totalCents: number };
@@ -6,13 +6,18 @@ type Props = {
   kind: "invoice" | "quote"; number: string; date: string; dueDate?: string | null; reference?: string | null;
   customerSageId: number | null; customerName?: string; lines: PaperLine[];
   exclusiveCents: number; taxCents: number; totalCents: number; discountCents: number; message?: string | null; draft?: boolean;
+  /** Frozen at issue time. When present, the document shows exactly what was issued, even if the customer or company was edited later. */
+  customerSnapshot?: Snapshot | null; companySnapshot?: CompanySnapshot | null;
 };
 
 const q = (s: string) => (Number(s) % 1 === 0 ? String(Number(s)) : s);
 
 export default function Paper(p: Props) {
-  const co = data.companies.find((c) => c.id === data.companyId) ?? data.companies[0];
-  const c = p.customerSageId ? customersById.get(p.customerSageId) : undefined;
+  const live = data.companies.find((c) => c.id === data.companyId) ?? data.companies[0];
+  const co = p.companySnapshot ?? live;
+  const cur = p.customerSageId ? customersById.get(p.customerSageId) : undefined;
+  const s = p.customerSnapshot;
+  const c = s ? { name: s.name, contactName: s.contact, vatNumber: s.vat, postalAddress: s.postal, deliveryAddress: s.delivery } : cur;
   const addr = c?.postalAddress ?? c?.deliveryAddress ?? [];
   const anyDiscount = p.lines.some((l) => Number(l.discountPercent) > 0);
   return (

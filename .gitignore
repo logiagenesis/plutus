@@ -8,3 +8,4 @@ data/
 app/src/data/
 .dev.vars
 .wrangler/
+.test-build/

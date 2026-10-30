@@ -9,6 +9,6 @@
   ],
   "observability": { "enabled": true },
   // Account: dennis@logia.co.za (8cabaf8ffc36147476b494c0cc35a34e), moved 28 Oct 2026 (docs/20).
-  // RESTORE_ENABLED "1" only while the new, empty database is being restored from a backup; removed straight after.
+  // Restore also needs the RESTORE_CODE secret (Cloudflare dashboard). Without it restore stays off, even with this switch on.
   "vars": { "RESTORE_ENABLED": "1" }
 }

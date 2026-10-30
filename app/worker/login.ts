@@ -59,7 +59,7 @@ type UserRow = { id: number; email: string; password_hash: string | null; passwo
 export async function sessionEmail(req: Request, env: Env): Promise<string | null> {
   const token = readCookie(req);
   if (!token) return null;
-  const row = await env.DB.prepare("SELECT u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?").bind(await sha256(token), now()).first<{ email: string }>();
+  const row = await env.DB.prepare("SELECT u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.password_hash IS NOT NULL").bind(await sha256(token), now()).first<{ email: string }>();
   return row?.email ?? null;
 }
 export async function requireSession(req: Request, env: Env): Promise<string> {
@@ -93,7 +93,10 @@ export async function handleAuth(req: Request, env: Env, path: string): Promise<
     const u = await env.DB.prepare("SELECT id, email FROM users WHERE password_hash IS NULL ORDER BY id LIMIT 1").first<{ id: number; email: string }>();
     if (!u) throw new AuthError("The password has already been set. Sign in instead.", 409);
     const h = await hashNew(password);
-    const r = await env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = ?, password_iterations = ?, password_set_at = ?, failed_count = 0, locked_until = NULL WHERE id = ? AND password_hash IS NULL").bind(h.hash, h.salt, h.iterations, now(), u.id).run();
+    const [r] = await env.DB.batch([
+      env.DB.prepare("UPDATE users SET password_hash = ?, password_salt = ?, password_iterations = ?, password_set_at = ?, failed_count = 0, locked_until = NULL WHERE id = ? AND password_hash IS NULL").bind(h.hash, h.salt, h.iterations, now(), u.id),
+      env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(u.id),
+    ]);
     if (!r.meta.changes) throw new AuthError("The password has already been set. Sign in instead.", 409);
     await audit(env, u.email, "password_set", { via });
     return json({ ok: true, email: u.email }, 200, { "set-cookie": await newSession(env, u.id) });
@@ -102,6 +105,7 @@ export async function handleAuth(req: Request, env: Env, path: string): Promise<
     const body = (await req.json()) as { email?: unknown; password?: unknown };
     const email = typeof body.email === "string" ? body.email.trim() : "";
     const password = typeof body.password === "string" ? body.password : "";
+    if (email.length > 200 || password.length > 200) throw new AuthError("Email or password is wrong.");
     const u = await env.DB.prepare("SELECT id, email, password_hash, password_salt, password_iterations, failed_count, locked_until FROM users WHERE email = ?").bind(email).first<UserRow>();
     if (u?.locked_until && u.locked_until > now()) throw new AuthError(`Too many wrong tries. Wait ${LOCK_MINUTES} minutes, then try again.`, 429);
     // Always do the same hashing work, so a wrong email and a wrong password look the same.
@@ -110,10 +114,13 @@ export async function handleAuth(req: Request, env: Env, path: string): Promise<
     const ok = !!u?.password_hash && password.length > 0 && sameHex(got, u.password_hash);
     if (!ok) {
       if (u) {
-        const fails = u.failed_count + 1;
-        const lock = fails >= MAX_FAILS ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null;
-        await env.DB.prepare("UPDATE users SET failed_count = ?, locked_until = ? WHERE id = ?").bind(lock ? 0 : fails, lock, u.id).run();
-        if (lock) await audit(env, u.email, "login_locked");
+        // Counted in one statement, so simultaneous wrong tries can't overwrite each other's count.
+        const until = new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString();
+        const r = await env.DB.prepare(`UPDATE users SET
+            locked_until = CASE WHEN failed_count + 1 >= ? THEN ? ELSE locked_until END,
+            failed_count = CASE WHEN failed_count + 1 >= ? THEN 0 ELSE failed_count + 1 END
+          WHERE id = ? RETURNING locked_until`).bind(MAX_FAILS, until, MAX_FAILS, u.id).first<{ locked_until: string | null }>();
+        if (r?.locked_until === until) await audit(env, u.email, "login_locked");
       }
       throw new AuthError("Email or password is wrong.");
     }

@@ -7,6 +7,7 @@ export type Env = {
   ACCESS_AUD?: string;         // Application Audience (AUD) tag from the Access application
   DEV_BYPASS?: string;         // "1" only in local development (.dev.vars), never in production
   RESTORE_ENABLED?: string;    // "1" only while moving Plutus to a new account (restore into a blank database)
+  RESTORE_CODE?: string;       // Cloudflare secret, set by the owner only for the restore; restore is off without it
 };
 
 type Jwk = JsonWebKey & { kid: string };

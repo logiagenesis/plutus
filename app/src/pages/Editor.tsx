@@ -13,7 +13,7 @@ const blank = (): EditLine => ({ key: seq++, itemSageId: null, description: "", 
 const endOfMonth = (iso: string) => { const [y, m] = iso.split("-").map(Number); return `${y}-${String(m).padStart(2, "0")}-${new Date(Date.UTC(y, m, 0)).getUTCDate()}`; };
 const centsToStr = (c: number) => (c / 100).toFixed(2);
 // Price input → cents. Accepts "1500", "1 500", "1,500.50", "R1500".
-function parsePrice(s: string): number | null {
+export function parsePrice(s: string): number | null {
   const t = s.replace(/[R\s,]/gi, "");
   if (t === "") return 0;
   if (!/^\d+(\.\d{1,2})?$/.test(t)) return null;
@@ -100,6 +100,8 @@ function EditorForm({ kind, source, editing }: { kind: Kind; source: Doc | null;
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
   const firstRef = useRef<HTMLFormElement>(null);
+  // One key per new-document screen: a retry or double-click returns the same draft instead of a second one.
+  const clientKey = useRef(crypto.randomUUID());
 
   const customer = customerId ? customersById.get(customerId) : undefined;
   const lastForCustomer = useMemo(() => customerId ? invoices.find((d) => d.customerSageId === customerId && d.status === "issued") : undefined, [customerId]);
@@ -130,7 +132,7 @@ function EditorForm({ kind, source, editing }: { kind: Kind; source: Doc | null;
     if (!ready) { firstRef.current?.querySelector<HTMLElement>("[aria-invalid=true]")?.focus(); return; }
     const body = {
       companyId: data.companyId, kind, customerId: customer!.sageId, date, dueDate: due || null, reference: reference || null, message: message || null, vat,
-      fromDocumentId: source?.sageId ?? null, version: editing?.version,
+      fromDocumentId: source?.sageId ?? null, version: editing?.version, clientKey: editing ? undefined : clientKey.current,
       lines: lines.map((l, i) => ({ itemId: l.itemSageId, description: l.description.trim(), comments: l.comments.trim() || null, unit: l.itemSageId ? itemsById.get(l.itemSageId)?.unit ?? null : null,
         quantity: calcInput[i].quantity, unitPriceExclCents: calcInput[i].unitPriceExclCents, discountPercent: calcInput[i].discountPercent })),
     };
@@ -139,7 +141,7 @@ function EditorForm({ kind, source, editing }: { kind: Kind; source: Doc | null;
       const saved = await api<any>(editing ? `documents/${editing.sageId}` : "documents", { method: editing ? "PUT" : "POST", body });
       if (saved.total_cents !== totals.totalCents) console.warn("Server total differs from screen total", saved.total_cents, totals.totalCents);
       await reload();
-      notify(`Draft ${kind === "invoice" ? "invoice" : "quote"} saved · ${rand(saved.total_cents)}`);
+      notify(saved.notice ?? `Draft ${kind === "invoice" ? "invoice" : "quote"} saved · ${rand(saved.total_cents)}`);
       go(`/${kind === "invoice" ? "invoices" : "quotes"}/${saved.id}`, true);
     } catch (e) { setSaveErr(e instanceof Error ? e.message : String(e)); setSaving(false); }
   }

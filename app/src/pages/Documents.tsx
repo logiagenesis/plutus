@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoices, quotes, customerName, fmtDate, invoiceStatus, quoteStatus, data, api, mapDoc, type Doc } from "../data";
+import { invoices, quotes, customerName, fmtDate, invoiceStatus, quoteStatus, data, api, mapDoc, todayISO, openCents, type Doc } from "../data";
 import { rand } from "../money";
+import { parsePrice } from "./Editor";
 import { I, Pill, Empty } from "../ui";
 import { go, useApp } from "../App";
 import Paper from "./Paper";
@@ -32,11 +33,14 @@ export function DocList({ kind }: { kind: Kind }) {
   const label = kind === "invoice" ? "Invoices" : "Quotes";
   const base = kind === "invoice" ? "invoices" : "quotes";
   const fromSage = all.some((d) => d.sageStatus);
+  const owed = kind === "invoice" ? all.filter((d) => d.status === "issued" && d.source === "app") : [];
+  const owedCents = owed.reduce((x, d) => x + openCents(d), 0);
+  const owedCount = owed.filter((d) => openCents(d) > 0).length;
 
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1>{label}</h1><p className="sub">{all.length} {label.toLowerCase()}</p></div>
+        <div><h1>{label}</h1><p className="sub">{all.length} {label.toLowerCase()}{owedCount > 0 && <> · <span style={{ color: "var(--accent)" }}>{owedCount} Plutus invoice{owedCount > 1 ? "s" : ""} owed: {rand(owedCents)}</span></>}</p></div>
         <a className="btn primary" href={`#/${base}/new`}><I.plus />New {kind}</a>
       </div>
       {kind === "invoice" && fromSage && (
@@ -188,7 +192,8 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
       <div className="detail">
         <div><Paper kind={kind} number={isDraft ? "Draft" : d.number} date={d.date} dueDate={d.dueDate} reference={d.reference}
           customerSageId={d.customerSageId} lines={d.lines} exclusiveCents={d.exclusiveCents}
-          taxCents={d.taxCents} totalCents={d.totalCents} discountCents={d.discountCents} message={d.message ?? (kind === "invoice" ? data.invoiceMessage : null)} draft={isDraft} /></div>
+          taxCents={d.taxCents} totalCents={d.totalCents} discountCents={d.discountCents} message={d.message ?? (kind === "invoice" ? data.invoiceMessage : null)} draft={isDraft}
+          customerSnapshot={d.customerSnapshot} companySnapshot={d.companySnapshot} /></div>
         <div className="stack">
           <section className="glass">
             <div className="panel-head"><h2>Summary</h2></div>
@@ -200,9 +205,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
               {d.reference && <><dt>Reference</dt><dd>{d.reference}</dd></>}
             </dl>
           </section>
-          {kind === "invoice" && st.label === "Not checked" && (
-            <div className="notice"><I.alert /><div><strong>Payment not checked yet</strong><p>No payment is recorded for this invoice. Matching your FNB statement will show if it was paid.</p></div></div>
-          )}
+          {kind === "invoice" && !isDraft && <Payments d={d} onChange={async (nd) => { setDoc(nd); await reload(); }} />}
           {isDraft && <button className="btn ghost" onClick={() => setConfirm("delete")} style={{ alignSelf: "flex-start" }}><I.trash />Delete draft</button>}
           {c && (
             <a className="glass tile interactive" href={`#/customers/${c.sageId}`} style={{ display: "block", padding: 18 }}>
@@ -214,5 +217,73 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function Payments({ d, onChange }: { d: Doc; onChange: (d: Doc) => Promise<void> }) {
+  const { notify } = useApp();
+  const open = openCents(d);
+  const [adding, setAdding] = useState(false);
+  const [date, setDate] = useState(todayISO());
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState("EFT");
+  const [reference, setReference] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [key, setKey] = useState(() => crypto.randomUUID());
+  const start = () => { setAdding(true); setErr(null); setAmount((open / 100).toFixed(2)); setKey(crypto.randomUUID()); };
+  async function save() {
+    const cents = parsePrice(amount);
+    if (cents === null || cents <= 0) return setErr("Enter the amount received, for example 1250.00");
+    if (cents > open) return setErr(`That is more than the ${rand(open)} still owed.`);
+    setBusy(true); setErr(null);
+    try {
+      const nd = mapDoc(await api<any>(`documents/${d.sageId}/payments`, { method: "POST", body: { date, amountCents: cents, method, reference: reference || null, clientKey: key } }));
+      setAdding(false); setReference(""); await onChange(nd); notify(`Payment of ${rand(cents)} recorded`);
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(false); }
+  }
+  async function remove(id: number) {
+    if (!confirm("Remove this payment? The invoice will show as owed again.")) return;
+    try { const nd = mapDoc(await api<any>(`documents/${d.sageId}/payments/${id}`, { method: "DELETE" })); await onChange(nd); notify("Payment removed"); }
+    catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+  }
+  const pays = (d.payments ?? []).filter((p) => !p.voidedAt);
+  return (
+    <section className="glass">
+      <div className="panel-head"><h2>Payments</h2></div>
+      <dl className="kv num">
+        <dt>Received</dt><dd>{rand(d.paidCents ?? 0)}</dd>
+        <dt>Still owed</dt><dd className="strong">{rand(open)}</dd>
+      </dl>
+      {d.source === "sage" && pays.length === 0 && <p className="muted" style={{ padding: "0 18px" }}>Imported from Sage. Payments after February 2022 were not recorded in Sage, so check your bank statement before chasing this one.</p>}
+      {pays.length > 0 && (
+        <ul className="pay-list" style={{ listStyle: "none", margin: 0, padding: "0 18px" }}>
+          {pays.map((p) => (
+            <li key={p.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0" }}>
+              <span className="num strong">{rand(p.amountCents)}</span>
+              <span className="muted">{fmtDate(p.date)}{p.method ? ` · ${p.method}` : ""}{p.reference ? ` · ${p.reference}` : ""}</span>
+              <button className="btn ghost small" style={{ marginLeft: "auto" }} onClick={() => remove(p.id)} aria-label={`Remove payment of ${rand(p.amountCents)}`}>Remove</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div style={{ padding: 18 }}>
+        {!adding ? (open > 0 && <button className="btn primary small" onClick={start}><I.check />Record payment</button>) : (
+          <form className="stack" onSubmit={(e) => { e.preventDefault(); save(); }} noValidate>
+            <label className="field"><span>Date received</span><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required /></label>
+            <label className="field"><span>Amount (R)</span><input className="input num" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required /></label>
+            <label className="field"><span>How</span>
+              <select className="select" value={method} onChange={(e) => setMethod(e.target.value)}><option>EFT</option><option>Cash</option><option>Card</option><option>Other</option></select></label>
+            <label className="field"><span>Bank reference (optional)</span><input className="input" value={reference} onChange={(e) => setReference(e.target.value)} maxLength={120} /></label>
+            {err && <p className="auth-err" role="alert">{err}</p>}
+            <div className="toolbar">
+              <button className="btn primary small" type="submit" disabled={busy}>{busy ? "Saving…" : "Save payment"}</button>
+              <button className="btn ghost small" type="button" onClick={() => setAdding(false)}>Cancel</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </section>
   );
 }

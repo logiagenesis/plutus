@@ -15,7 +15,16 @@ export type Doc = {
   discountCents: number; exclusiveCents: number; taxCents: number; totalCents: number;
   amountDueCents: number | null; sageStatus: string | null; fromDocument: string | null; lines: Line[];
   firstLine?: string | null; lineCount?: number; version: number; message?: string | null; vat?: boolean;
+  source?: "app" | "sage"; paidCents?: number; payments?: Payment[];
+  customerSnapshot?: Snapshot | null; companySnapshot?: CompanySnapshot | null;
 };
+export type Payment = { id: number; date: string; amountCents: number; method: string | null; reference: string | null; note: string | null; createdBy: string; createdAt: string; voidedAt: string | null };
+export type Snapshot = { name: string; contact: string | null; email: string | null; vat: string | null; postal: string[] | null; delivery: string[] | null };
+export type CompanySnapshot = { id: string; displayName: string; registeredName: string | null; registrationNumber: string | null; vatNumber: string | null; email: string | null; telephone: string | null; address: string[] | null };
+const parseObj = <T,>(s: unknown): T | null => { if (typeof s !== "string" || !s) return null; try { return JSON.parse(s) as T; } catch { return null; } };
+const mapPayment = (p: any): Payment => ({ id: p.id, date: p.date, amountCents: p.amount_cents, method: p.method, reference: p.reference, note: p.note, createdBy: p.created_by, createdAt: p.created_at, voidedAt: p.voided_at });
+/** What is still owed on an issued invoice, from payments recorded in Plutus. */
+export const openCents = (d: Doc) => Math.max(0, d.totalCents - (d.paidCents ?? 0));
 export type Recurring = Doc & { frequency: string; startDate: string; lastRunDate: string | null; active: boolean; message: string | null };
 export type Customer = {
   sageId: number; name: string; category: string | null; contactName: string | null; email: string | null;
@@ -50,6 +59,9 @@ export const mapDoc = (d: any): Doc => ({
   reference: d.reference, discountCents: d.discount_cents ?? 0, exclusiveCents: d.exclusive_cents ?? 0, taxCents: d.tax_cents, totalCents: d.total_cents, amountDueCents: d.sage_amount_due_cents ?? null,
   sageStatus: d.sage_status, fromDocument: d.from_number, lines: Array.isArray(d.lines) ? d.lines.map(mapLine) : [], firstLine: d.first_line, lineCount: d.line_count, version: d.version,
   message: d.message, vat: d.vat_rate ? d.vat_rate !== "0" : (d.tax_cents ?? 0) > 0,
+  source: d.source, payments: Array.isArray(d.payments) ? d.payments.map(mapPayment) : undefined,
+  paidCents: Array.isArray(d.payments) ? d.payments.filter((p: any) => !p.voided_at).reduce((a: number, p: any) => a + p.amount_cents, 0) : (d.paid_cents ?? 0),
+  customerSnapshot: parseObj<Snapshot>(d.customer_snapshot_json), companySnapshot: parseObj<CompanySnapshot>(d.company_snapshot_json),
 });
 
 // Mutable store (module-level so existing selectors keep working).
@@ -121,8 +133,12 @@ export function nextRun(r: Recurring): string | null {
 export type Tone = "ok" | "warn" | "bad" | "info" | "plain";
 export function invoiceStatus(d: Doc): { label: string; tone: Tone } {
   if (d.status === "draft") return { label: "Draft", tone: "info" };
+  const paid = d.paidCents ?? 0;
+  if (paid > 0 && paid >= d.totalCents) return { label: "Paid", tone: "ok" };
+  if (paid > 0) return { label: "Part paid", tone: "info" };
   if (d.sageStatus === "Paid") return { label: "Paid", tone: "ok" };
   if (d.sageStatus === "Partially Paid") return { label: "Part paid", tone: "info" };
+  if (d.source === "app") return d.dueDate && d.dueDate < todayISO() ? { label: "Overdue", tone: "bad" } : { label: "Unpaid", tone: "warn" };
   return { label: "Not checked", tone: "plain" };
 }
 export function quoteStatus(d: Doc): { label: string; tone: Tone } {
@@ -130,6 +146,6 @@ export function quoteStatus(d: Doc): { label: string; tone: Tone } {
   if (d.sageStatus === "Invoiced") return { label: "Accepted", tone: "ok" };
   if (d.sageStatus === "Pending") return { label: "Waiting for customer", tone: "info" };
   if (d.sageStatus === "Expired") return { label: "Expired", tone: "plain" };
-  if (!d.sageStatus) return { label: "Sent", tone: "info" };
+  if (!d.sageStatus) return { label: "Issued", tone: "info" }; // "Sent" only once emailing exists and an email actually went out
   return { label: d.sageStatus, tone: "plain" };
 }
