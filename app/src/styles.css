@@ -290,6 +290,10 @@ table.grid { width: 100%; border-collapse: collapse; }
 .paper .p-tot { margin-left: auto; width: 220px; margin-top: 12px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; }
 .paper .p-grand { font-weight: 700; font-size: 14px; border-top: 1px solid #16202b; padding-top: 6px; }
 .paper .p-msg { margin-top: 18px; white-space: pre-line; font-size: 11px; color: #3b4755; padding-top: 12px; border-top: 1px solid #eef1f4; }
+.paper .p-bank { margin-top: 22px; padding: 14px 16px; background: #f4f6f9; border: 1px solid #dfe5eb; border-radius: 8px; font-size: 11px; }
+.paper .p-bank-head { font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; color: #16202b; margin-bottom: 8px; border-bottom: 1px solid #dfe5eb; padding-bottom: 4px; }
+.paper .p-bank-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px; }
+.paper .p-bank-foot { margin-top: 8px; padding-top: 6px; border-top: 1px dashed #dfe5eb; color: #3b4755; font-size: 11px; }
 .preview-tabs { display: none; }
 
 /* Detail layout */
@@ -372,3 +376,50 @@ table.grid { width: 100%; border-collapse: collapse; }
 .auth-err { margin: 0; color: var(--warn); font-size: 13.5px; }
 .rail-user { display: flex; flex-direction: column; gap: 6px; }
 .rail-user .btn { align-self: flex-start; }
+
+
+/* ───────── Print & PDF Export ───────── */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #16202b !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .rail, .topbar, .tabbar, .page-head, .crumb, .stack, .savebar, .notice, .btn, .toolbar, .preview-tabs, .auth-wrap {
+    display: none !important;
+  }
+  .main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+  .shell {
+    display: block !important;
+  }
+  .detail {
+    display: block !important;
+    grid-template-columns: 1fr !important;
+  }
+  .paper-wrap {
+    position: static !important;
+  }
+  .paper {
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #16202b !important;
+  }
+  .paper .p-bank {
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+}

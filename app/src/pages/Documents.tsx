@@ -152,6 +152,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
         </div>
         <div className="toolbar">
           <Pill tone={st.tone}>{st.label}</Pill>
+          <button className="btn" type="button" onClick={() => window.print()} title="Print or Save as PDF"><I.print />Print / PDF</button>
           {isDraft ? (
             <>
               <a className="btn" href={`#/${base}/${d.sageId}/edit`}>Edit</a>

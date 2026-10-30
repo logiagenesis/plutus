@@ -26,11 +26,17 @@ export default function Paper(p: Props) {
         <div>
           <div className="p-co">{co.displayName}</div>
           <div className="p-muted">{(co.address ?? []).join(", ")}</div>
-          <div className="p-muted">Reg. {co.registrationNumber} · {co.email}</div>
+          <div className="p-muted">
+            {co.registrationNumber ? `Reg. ${co.registrationNumber}` : ""}
+            {co.registrationNumber && co.email ? " · " : ""}
+            {co.email ? co.email : ""}
+            {co.telephone ? ` · Tel: ${co.telephone}` : ""}
+          </div>
+          {co.vatNumber && <div className="p-muted">VAT Reg. {co.vatNumber}</div>}
         </div>
         <div>
           <div className="p-title">{p.kind === "invoice" ? (p.taxCents > 0 ? "Tax Invoice" : "Invoice") : "Quotation"}</div>
-          <div className="p-muted" style={{ textAlign: "right" }}>{p.draft ? "Draft" : p.number}</div>
+          <div className="p-muted" style={{ textAlign: "right", fontWeight: 600, fontSize: 14 }}>{p.draft ? "Draft" : p.number}</div>
         </div>
       </div>
       <div className="p-top" style={{ marginTop: 22 }}>
@@ -68,6 +74,20 @@ export default function Paper(p: Props) {
         <span className="p-muted">VAT</span><span className="r">{rand(p.taxCents)}</span>
         <span className="p-grand">Total</span><span className="p-grand r">{rand(p.totalCents)}</span>
       </div>
+      {p.kind === "invoice" && (
+        <div className="p-bank">
+          <div className="p-bank-head">Banking &amp; Payment Details</div>
+          <div className="p-bank-grid">
+            <div><span className="p-muted">Bank:</span> <strong>First National Bank (FNB)</strong></div>
+            <div><span className="p-muted">Account Name:</span> <strong>{co.registeredName || co.displayName}</strong></div>
+            <div><span className="p-muted">Account Number:</span> <strong className="num">62932184469</strong></div>
+            <div><span className="p-muted">Account Type:</span> <strong>Current / Cheque Account</strong></div>
+            <div><span className="p-muted">Branch Code:</span> <strong className="num">250 655</strong> (Menlyn Maine)</div>
+            <div><span className="p-muted">Payment Reference:</span> <strong className="num">{p.draft ? "Invoice Number" : p.number}</strong></div>
+          </div>
+          <div className="p-bank-foot">Please email proof of payment to <strong>{co.email || "accounts@logia.co.za"}</strong></div>
+        </div>
+      )}
       {p.message && <div className="p-msg">{p.message}</div>}
     </article>
   );

@@ -24,6 +24,7 @@ export const I = {
   more: (p: SVGProps<SVGSVGElement>) => <svg {...P(p)}><circle cx="6" cy="12" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="18" cy="12" r="1.2" /></svg>,
   copy: (p: SVGProps<SVGSVGElement>) => <svg {...P(p)}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" /></svg>,
   trash: (p: SVGProps<SVGSVGElement>) => <svg {...P(p)}><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>,
+  print: (p: SVGProps<SVGSVGElement>) => <svg {...P(p)}><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="7" rx="1" /></svg>,
 };
 
 export function Pill({ tone, children }: { tone: Tone; children: ReactNode }) {
