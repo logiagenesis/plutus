@@ -39,7 +39,7 @@ Two homes:
 | 20_MOVE_TO_LOGIA_CLOUDFLARE_ACCOUNT | docs/20 | 20_MOVE_TO_LOGIA_CLOUDFLARE_ACCOUNT_2026-10-30.md | Old copies 1VigA57U… (Plutus) and 1TMHV8Xe… (Claude Folder) are out of date |
 | 21_AUDIT_FIXES_2026-10-30 | docs/21 | 21_AUDIT_FIXES_2026-10-30.md | Identical |
 | 22_SCHEDULED_AUDIT_SETUP_2026-10-27 | docs/22 | 2026-10-27_Plutus_Scheduled_Audit_Setup.md | Identical text; was Drive-only until 30 Oct |
-| 23_REPOSITORY_MAP | docs/23 | 23_REPOSITORY_MAP.md | This file |
+| 23_REPOSITORY_MAP | docs/23 | 23_REPOSITORY_MAP_2026-10-30.md | This file |
 | Comprehensive audit 30 Oct 2026 | Not yet (repo is public) | 00_Project_Control/Audits/2026-10-30_Plutus_Comprehensive_Audit.md | Add to GitHub once the repo is private |
 | Source code | app/, scripts/, brand/, references/ | 05_Source_Code: SOURCE_SNAPSHOTS.md (commit + download link); zip added by Dennis | Connector cannot upload the zip itself |
 
@@ -52,6 +52,8 @@ Claude's Drive connection can create files in the shared drive but cannot move, 
 5. Top level 00_ARCHIVE_INDEX.md (duplicate of 17)
 6. Top level plutus-backup-2026-10-28-08-29-22.json → move to 04_Data/Backups instead
 7. Claude Folder › Projects › Plutus › 20_MOVE_TO_LOGIA_CLOUDFLARE_ACCOUNT.md → that folder's _Superseded
+8. 00_Project_Control/23_REPOSITORY_MAP.md uploaded at 12:00 SAST (ID 17wAmadN…; first draft, source-code row wrong) — the current one is 23_REPOSITORY_MAP_2026-10-30.md
+9. 00_Project_Control/21_AUDIT_FIXES_2026-10-30.md is current; nothing to move
 
 ## Never in GitHub (by design)
 Customer data, Sage exports, import files, the review workbook, backups, the prototype (real customer names), full bank details, passwords and secrets.
