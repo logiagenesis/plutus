@@ -41,7 +41,7 @@ Two homes:
 | 22_SCHEDULED_AUDIT_SETUP_2026-10-27 | docs/22 | 2026-10-27_Plutus_Scheduled_Audit_Setup.md | Identical text; was Drive-only until 30 Oct |
 | 23_REPOSITORY_MAP | docs/23 | 23_REPOSITORY_MAP.md | This file |
 | Comprehensive audit 30 Oct 2026 | Not yet (repo is public) | 00_Project_Control/Audits/2026-10-30_Plutus_Comprehensive_Audit.md | Add to GitHub once the repo is private |
-| Source code | app/, scripts/, brand/, references/ | 05_Source_Code/Plutus_source_<commit>.zip | Snapshot per round |
+| Source code | app/, scripts/, brand/, references/ | 05_Source_Code: SOURCE_SNAPSHOTS.md (commit + download link); zip added by Dennis | Connector cannot upload the zip itself |
 
 ## Files to drag into 00_Project_Control/_Superseded (Dennis)
 Claude's Drive connection can create files in the shared drive but cannot move, rename or delete them, so these stay where they are until moved by hand:
