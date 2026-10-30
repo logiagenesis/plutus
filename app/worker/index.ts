@@ -322,9 +322,9 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn) {
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO email_messages (company_id, document_id, recipient_email, cc_email, subject, body_text, status, provider_id, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(d.company_id, docId, to, cc, subject, bodyText, status, providerId, actor),
-    env.DB.prepare(`UPDATE documents SET sent_at = strftime(%Y-%m-%dT%H:%M:%fZ,now), sent_to = ? WHERE id = ?`).bind(to, docId),
+    env.DB.prepare(`UPDATE documents SET sent_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), sent_to = ? WHERE id = ?`).bind(to, docId),
     env.DB.prepare(`INSERT INTO audit_events (actor, action, entity, entity_id, detail_json)
-      VALUES (?, email_sent, document, ?, ?)`).bind(actor, docId, JSON.stringify({ to, cc, subject, status, providerId })),
+      VALUES (?, 'email_sent', 'document', ?, ?)`).bind(actor, docId, JSON.stringify({ to, cc, subject, status, providerId })),
   ]);
 
   return getDocument(env, docId);
@@ -420,14 +420,14 @@ async function runRecurringBatch(env: Env, actor: string = "system:cron", compan
   let totalGeneratedCents = 0;
 
   for (const t of templates.results) {
-    const exists = await env.DB.prepare("SELECT id, number FROM documents WHERE recurring_template_id = ? AND recurring_period = ? AND status <> "void"").bind(t.id, period).first<{ id: number; number: string }>();
+    const exists = await env.DB.prepare("SELECT id, number FROM documents WHERE recurring_template_id = ? AND recurring_period = ? AND status <> 'void'").bind(t.id, period).first<{ id: number; number: string }>();
     if (exists) {
       skippedCount++;
       continue;
     }
 
-    const numSql = "(SELECT prefix || substr("0000000000000000" || next_value, -width) FROM number_sequences WHERE company_id = ?1 AND kind = "invoice")";
-    const custSnapSql = "(SELECT json_object("name", name, "contact", contact_name, "email", email, "vat", vat_number, "postal", json(postal_address_json), "delivery", json(delivery_address_json)) FROM customers WHERE id = ?2)";
+    const numSql = "(SELECT prefix || substr('0000000000000000' || next_value, -width) FROM number_sequences WHERE company_id = ?1 AND kind = 'invoice')";
+    const custSnapSql = "(SELECT json_object('name', name, 'contact', contact_name, 'email', email, 'vat', vat_number, 'postal', json(postal_address_json), 'delivery', json(delivery_address_json)) FROM customers WHERE id = ?2)";
 
     const insDoc = env.DB.prepare(`
       INSERT INTO documents (
@@ -455,7 +455,7 @@ async function runRecurringBatch(env: Env, actor: string = "system:cron", compan
     const docId = docRes.id;
     const invNumber = docRes.number;
 
-    await env.DB.prepare("UPDATE number_sequences SET next_value = next_value + 1 WHERE company_id = ? AND kind = "invoice"").bind(companyId).run();
+    await env.DB.prepare("UPDATE number_sequences SET next_value = next_value + 1 WHERE company_id = ? AND kind = 'invoice'").bind(companyId).run();
 
     const lines = await env.DB.prepare("SELECT * FROM recurring_lines WHERE template_id = ? ORDER BY line_no").bind(t.id).all<any>();
     const lineStatements: D1PreparedStatement[] = lines.results.map((l: any) =>
@@ -471,7 +471,7 @@ async function runRecurringBatch(env: Env, actor: string = "system:cron", compan
     );
 
     lineStatements.push(env.DB.prepare("UPDATE recurring_templates SET last_run_date = ? WHERE id = ?").bind(date, t.id));
-    lineStatements.push(env.DB.prepare("INSERT INTO audit_events (actor, action, entity, entity_id, detail_json) VALUES (?, "recurring_generated", "document", ?, ?)")
+    lineStatements.push(env.DB.prepare("INSERT INTO audit_events (actor, action, entity, entity_id, detail_json) VALUES (?, 'recurring_generated', 'document', ?, ?)")
       .bind(actor, docId, JSON.stringify({ templateId: t.id, period, number: invNumber, total: t.total_cents })));
 
     await env.DB.batch(lineStatements);
@@ -493,6 +493,406 @@ async function runRecurringBatch(env: Env, actor: string = "system:cron", compan
     invoices: generatedInvoices,
   };
 }
+
+// ───────── FNB bank statement CSV reconciliation (Piece 4) ─────────
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = [];
+  const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const fields: string[] = [];
+    let field = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c === ',' && !inQuotes) {
+        fields.push(field.trim());
+        field = "";
+      } else {
+        field += c;
+      }
+    }
+    fields.push(field.trim());
+    rows.push(fields);
+  }
+  return rows;
+}
+
+const MONTH_NAMES: Record<string, string> = {
+  jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+  jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12"
+};
+
+function parseBankDate(s: string): string | null {
+  if (!s) return null;
+  const t = s.trim().replace(/^['"]|['"]$/g, "");
+  const m1 = t.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (m1) {
+    const d = `${m1[1]}-${m1[2].padStart(2, "0")}-${m1[3].padStart(2, "0")}`;
+    return isCalendarDate(d) ? d : null;
+  }
+  const m2 = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m2) {
+    const d = `${m2[3]}-${m2[2].padStart(2, "0")}-${m2[1].padStart(2, "0")}`;
+    return isCalendarDate(d) ? d : null;
+  }
+  const m3 = t.match(/^(\d{1,2})[\s\-]([A-Za-z]{3})[\s\-](\d{4})$/);
+  if (m3) {
+    const mon = MONTH_NAMES[m3[2].toLowerCase()];
+    if (mon) {
+      const d = `${m3[3]}-${mon}-${m3[1].padStart(2, "0")}`;
+      return isCalendarDate(d) ? d : null;
+    }
+  }
+  return null;
+}
+
+function parseBankAmountCents(s: string): number | null {
+  if (!s) return null;
+  let clean = s.trim().replace(/[R\$\s]/g, "");
+  let isNegative = false;
+  if (clean.endsWith("Dr") || clean.endsWith("DR") || clean.endsWith("dr")) { isNegative = true; clean = clean.slice(0, -2); }
+  if (clean.endsWith("Cr") || clean.endsWith("CR") || clean.endsWith("cr")) { clean = clean.slice(0, -2); }
+  if (clean.startsWith("(") && clean.endsWith(")")) { isNegative = true; clean = clean.slice(1, -1); }
+  if (clean.startsWith("-")) { isNegative = true; clean = clean.slice(1); }
+  if (clean.startsWith("+")) { clean = clean.slice(1); }
+  clean = clean.trim();
+  if (clean.includes(",") && clean.includes(".")) {
+    clean = clean.replace(/,/g, "");
+  } else if (clean.includes(",") && !clean.includes(".")) {
+    clean = clean.replace(/,/g, ".");
+  }
+  const n = parseFloat(clean);
+  if (Number.isNaN(n)) return null;
+  const cents = Math.round(n * 100);
+  return isNegative ? -Math.abs(cents) : Math.abs(cents);
+}
+
+async function hashBankTx(companyId: string, date: string, amountCents: number, balanceCents: number | null, desc: string): Promise<string> {
+  const enc = new TextEncoder();
+  const raw = `${companyId}|${date}|${amountCents}|${balanceCents ?? ""}|${desc.trim().toLowerCase()}`;
+  const h = await crypto.subtle.digest("SHA-256", enc.encode(raw));
+  return [...new Uint8Array(h)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+type BankImportIn = { companyId: string; filename: string; csvContent: string };
+
+type MatchSuggestion = {
+  documentId: number;
+  invoiceNumber: string;
+  fromNumber: string | null;
+  customerName: string;
+  openCents: number;
+  confidence: "high" | "medium" | "low";
+  reason: string;
+};
+
+async function getOpenInvoices(env: Env, companyId: string) {
+  const r = await env.DB.prepare(`
+    SELECT d.id, d.number, d.from_number, d.date, d.total_cents, d.reference,
+      (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL) AS paid_cents,
+      c.name AS customer_name
+    FROM documents d
+    JOIN customers c ON c.id = d.customer_id
+    WHERE d.company_id = ? AND d.kind = 'invoice' AND d.status = 'issued'
+    ORDER BY d.date DESC
+  `).bind(companyId).all<any>();
+  return r.results.map((d: any) => ({
+    id: d.id,
+    number: d.number,
+    fromNumber: d.from_number,
+    date: d.date,
+    totalCents: d.total_cents,
+    paidCents: d.paid_cents,
+    openCents: Math.max(0, d.total_cents - d.paid_cents),
+    customerName: d.customer_name,
+    reference: d.reference,
+  })).filter((d: any) => d.openCents > 0);
+}
+
+function suggestMatchForTx(tx: { description: string; amount_cents: number }, openInvoices: any[]): MatchSuggestion | null {
+  if (tx.amount_cents <= 0) return null;
+  const desc = tx.description.toUpperCase();
+
+  // 1. Exact Invoice number match (e.g. INV-000042, INV000042, 000042)
+  for (const inv of openInvoices) {
+    const numClean = (inv.number || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    const fromClean = (inv.fromNumber || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    const descClean = desc.replace(/[^A-Za-z0-9]/g, "");
+
+    const matchNum = numClean && numClean.length >= 3 && descClean.includes(numClean);
+    const matchFrom = fromClean && fromClean.length >= 3 && descClean.includes(fromClean);
+
+    if (matchNum || matchFrom) {
+      const exactAmount = inv.openCents === tx.amount_cents;
+      return {
+        documentId: inv.id,
+        invoiceNumber: inv.number,
+        fromNumber: inv.fromNumber,
+        customerName: inv.customerName,
+        openCents: inv.openCents,
+        confidence: exactAmount ? "high" : "medium",
+        reason: exactAmount
+          ? `Invoice ${inv.number} reference and exact amount match`
+          : `Invoice ${inv.number} reference match (partial payment: R ${(tx.amount_cents / 100).toFixed(2)} of R ${(inv.openCents / 100).toFixed(2)})`,
+      };
+    }
+  }
+
+  // 2. Customer Name + Exact Amount match
+  for (const inv of openInvoices) {
+    const nameWords = inv.customerName
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w: string) => w.length >= 4 && !["services", "pty", "ltd", "logia", "holdings", "company", "group"].includes(w));
+    
+    const descLower = tx.description.toLowerCase();
+    const matchWord = nameWords.find((w: string) => descLower.includes(w));
+    if (matchWord) {
+      if (inv.openCents === tx.amount_cents) {
+        return {
+          documentId: inv.id,
+          invoiceNumber: inv.number,
+          fromNumber: inv.fromNumber,
+          customerName: inv.customerName,
+          openCents: inv.openCents,
+          confidence: "high",
+          reason: `Customer "${inv.customerName}" & exact open balance match`,
+        };
+      }
+    }
+  }
+
+  // 3. Unique Exact Amount match
+  const amountMatches = openInvoices.filter((inv) => inv.openCents === tx.amount_cents);
+  if (amountMatches.length === 1) {
+    const inv = amountMatches[0];
+    return {
+      documentId: inv.id,
+      invoiceNumber: inv.number,
+      fromNumber: inv.fromNumber,
+      customerName: inv.customerName,
+      openCents: inv.openCents,
+      confidence: "medium",
+      reason: `Unique open invoice matching exact amount (R ${(inv.openCents / 100).toFixed(2)}) for ${inv.customerName}`,
+    };
+  }
+
+  return null;
+}
+
+async function handleBankImport(env: Env, actor: string, input: BankImportIn) {
+  const co = await companyOk(env, input.companyId);
+  if (!input.csvContent || typeof input.csvContent !== "string") throw bad("No CSV content provided");
+  const filename = str(input.filename, 200) ?? "statement.csv";
+
+  const rows = parseCsvRows(input.csvContent);
+  if (rows.length === 0) throw bad("CSV file is empty");
+
+  let headerIdx = -1;
+  let dateCol = -1;
+  let amountCol = -1;
+  let balanceCol = -1;
+  let descCol = -1;
+
+  for (let i = 0; i < Math.min(10, rows.length); i++) {
+    const row = rows[i].map((c) => c.toLowerCase().trim());
+    const dIdx = row.findIndex((c) => c === "date" || c === "transaction date" || c.includes("date"));
+    const aIdx = row.findIndex((c) => c === "amount" || c === "amount (zar)" || c.includes("amount"));
+    if (dIdx !== -1 && aIdx !== -1) {
+      headerIdx = i;
+      dateCol = dIdx;
+      amountCol = aIdx;
+      balanceCol = row.findIndex((c) => c === "balance" || c.includes("balance"));
+      descCol = row.findIndex((c) => c === "description" || c === "narrative" || c === "reference" || c.includes("desc"));
+      break;
+    }
+  }
+
+  if (headerIdx === -1) {
+    dateCol = 0;
+    amountCol = 1;
+    balanceCol = 2;
+    descCol = 3;
+  }
+
+  const dataRows = rows.slice(headerIdx + 1);
+  if (dataRows.length === 0) throw bad("No transaction rows found in CSV");
+
+  const enc = new TextEncoder();
+  const fileHashBytes = await crypto.subtle.digest("SHA-256", enc.encode(input.csvContent));
+  const fileChecksum = [...new Uint8Array(fileHashBytes)].map((x) => x.toString(16).padStart(2, "0")).join("");
+
+  const stmtRes = await env.DB.prepare(`
+    INSERT INTO bank_statements (company_id, filename, row_count, checksum, imported_by)
+    VALUES (?, ?, ?, ?, ?)
+    RETURNING id
+  `).bind(input.companyId, filename, dataRows.length, fileChecksum, actor).first<{ id: number }>();
+  if (!stmtRes) throw new HttpError(500, "Could not create statement record");
+  const statementId = stmtRes.id;
+
+  let importedCount = 0;
+  let skippedCount = 0;
+
+  for (const row of dataRows) {
+    if (row.length < 2) continue;
+    const dateStr = row[dateCol];
+    const amountStr = row[amountCol];
+    const date = parseBankDate(dateStr);
+    const amountCents = parseBankAmountCents(amountStr);
+    if (!date || amountCents === null) continue;
+
+    const balanceCents = balanceCol !== -1 && row[balanceCol] ? parseBankAmountCents(row[balanceCol]) : null;
+    const desc = descCol !== -1 && row[descCol] ? row[descCol].trim() : row.slice(2).join(" ").trim();
+    if (!desc) continue;
+
+    const txHash = await hashBankTx(input.companyId, date, amountCents, balanceCents, desc);
+
+    const r = await env.DB.prepare(`
+      INSERT INTO bank_transactions (
+        statement_id, company_id, date, description, amount_cents, balance_cents, transaction_hash, status
+      )
+      SELECT ?, ?, ?, ?, ?, ?, ?, 'unmatched'
+      WHERE NOT EXISTS (SELECT 1 FROM bank_transactions WHERE company_id = ? AND transaction_hash = ?)
+      RETURNING id
+    `).bind(statementId, input.companyId, date, desc, amountCents, balanceCents, txHash, input.companyId, txHash).first<{ id: number }>();
+
+    if (r) importedCount++;
+    else skippedCount++;
+  }
+
+  await env.DB.prepare("UPDATE bank_statements SET row_count = ? WHERE id = ?").bind(importedCount, statementId).run();
+  await audit(env, actor, "bank_statement_import", "bank_statement", statementId, { filename, importedCount, skippedCount }).run();
+
+  return json({ statementId, importedCount, skippedCount, totalRows: dataRows.length });
+}
+
+async function listBankTransactions(env: Env, companyId: string, statusFilter?: string) {
+  let sql = "SELECT * FROM bank_transactions WHERE company_id = ?";
+  const args: any[] = [companyId];
+  if (statusFilter && ["unmatched", "matched", "ignored"].includes(statusFilter)) {
+    sql += " AND status = ?";
+    args.push(statusFilter);
+  }
+  sql += " ORDER BY date DESC, id DESC LIMIT 500";
+
+  const txs = await env.DB.prepare(sql).bind(...args).all<any>();
+  const openInvoices = await getOpenInvoices(env, companyId);
+
+  const results = txs.results.map((tx: any) => {
+    let suggestion: MatchSuggestion | null = null;
+    if (tx.status === "unmatched" && tx.amount_cents > 0) {
+      suggestion = suggestMatchForTx(tx, openInvoices);
+    }
+    return {
+      id: tx.id,
+      statementId: tx.statement_id,
+      companyId: tx.company_id,
+      date: tx.date,
+      description: tx.description,
+      amountCents: tx.amount_cents,
+      balanceCents: tx.balance_cents,
+      matchedDocumentId: tx.matched_document_id,
+      matchedAt: tx.matched_at,
+      matchType: tx.match_type,
+      status: tx.status,
+      suggestion,
+    };
+  });
+
+  const stats = await env.DB.prepare(`
+    SELECT
+      COUNT(*) AS total,
+      SUM(CASE WHEN status = 'unmatched' AND amount_cents > 0 THEN 1 ELSE 0 END) AS unmatched_deposits_count,
+      SUM(CASE WHEN status = 'unmatched' AND amount_cents > 0 THEN amount_cents ELSE 0 END) AS unmatched_deposits_cents,
+      SUM(CASE WHEN status = 'matched' THEN 1 ELSE 0 END) AS matched_count,
+      SUM(CASE WHEN status = 'matched' THEN amount_cents ELSE 0 END) AS matched_cents,
+      SUM(CASE WHEN status = 'ignored' THEN 1 ELSE 0 END) AS ignored_count
+    FROM bank_transactions WHERE company_id = ?
+  `).bind(companyId).first<any>();
+
+  return json({ transactions: results, stats, openInvoices });
+}
+
+async function handleBankMatch(env: Env, actor: string, input: { transactionId: number; documentId: number; amountCents?: number; note?: string }) {
+  const tx = await env.DB.prepare("SELECT * FROM bank_transactions WHERE id = ?").bind(input.transactionId).first<any>();
+  if (!tx) throw new HttpError(404, "Transaction not found");
+  if (tx.status === "matched") throw bad("Transaction is already matched");
+  if (tx.amount_cents <= 0) throw bad("Only credit/deposit transactions can be matched to invoices");
+
+  const doc = await env.DB.prepare("SELECT id, company_id, number, status, total_cents FROM documents WHERE id = ?").bind(input.documentId).first<any>();
+  if (!doc) throw new HttpError(404, "Document not found");
+  if (doc.status !== "issued") throw bad("Only issued invoices can receive payment");
+  if (doc.company_id !== tx.company_id) throw bad("Company mismatch between bank transaction and document");
+
+  const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS paid FROM payments WHERE document_id = ? AND voided_at IS NULL").bind(doc.id).first<{ paid: number }>();
+  const openCents = Math.max(0, doc.total_cents - (paidRow?.paid ?? 0));
+  if (openCents <= 0) throw bad("This invoice is already fully paid");
+
+  const matchAmount = input.amountCents && input.amountCents > 0 ? Math.min(input.amountCents, openCents) : Math.min(tx.amount_cents, openCents);
+
+  const paymentRef = `FNB: ${tx.description.slice(0, 100)}`;
+  const pKey = `bank-reconcile-tx-${tx.id}-doc-${doc.id}`;
+  await addPayment(env, actor, doc.id, {
+    date: tx.date,
+    amountCents: matchAmount,
+    method: "fnb_eft",
+    reference: paymentRef,
+    note: input.note ?? `Reconciled from FNB statement transaction #${tx.id}`,
+    clientKey: pKey,
+  });
+
+  await env.DB.prepare(`
+    UPDATE bank_transactions
+    SET status = 'matched', matched_document_id = ?, matched_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), match_type = 'confirmed'
+    WHERE id = ?
+  `).bind(doc.id, tx.id).run();
+
+  await audit(env, actor, "bank_match", "bank_transaction", tx.id, { documentId: doc.id, amountCents: matchAmount }).run();
+  return json({ ok: true, transactionId: tx.id, documentId: doc.id, amountMatchedCents: matchAmount });
+}
+
+async function handleBankIgnore(env: Env, actor: string, input: { transactionId: number }) {
+  const tx = await env.DB.prepare("SELECT * FROM bank_transactions WHERE id = ?").bind(input.transactionId).first<any>();
+  if (!tx) throw new HttpError(404, "Transaction not found");
+  if (tx.status === "matched") throw bad("Cannot ignore a matched transaction. Unmatch it first.");
+
+  await env.DB.prepare("UPDATE bank_transactions SET status = 'ignored' WHERE id = ?").bind(tx.id).run();
+  await audit(env, actor, "bank_ignore", "bank_transaction", tx.id).run();
+  return json({ ok: true, transactionId: tx.id, status: "ignored" });
+}
+
+async function handleBankUnmatch(env: Env, actor: string, input: { transactionId: number }) {
+  const tx = await env.DB.prepare("SELECT * FROM bank_transactions WHERE id = ?").bind(input.transactionId).first<any>();
+  if (!tx) throw new HttpError(404, "Transaction not found");
+  if (tx.status !== "matched" || !tx.matched_document_id) throw bad("Transaction is not currently matched");
+
+  const docId = tx.matched_document_id;
+  const pKey = `bank-reconcile-tx-${tx.id}-doc-${docId}`;
+
+  const pay = await env.DB.prepare("SELECT id FROM payments WHERE client_key = ? AND document_id = ? AND voided_at IS NULL").bind(pKey, docId).first<{ id: number }>();
+  if (pay) {
+    await voidPayment(env, actor, docId, pay.id);
+  }
+
+  await env.DB.prepare(`
+    UPDATE bank_transactions
+    SET status = 'unmatched', matched_document_id = NULL, matched_at = NULL, match_type = NULL
+    WHERE id = ?
+  `).bind(tx.id).run();
+
+  await audit(env, actor, "bank_unmatch", "bank_transaction", tx.id, { documentId: docId }).run();
+  return json({ ok: true, transactionId: tx.id, status: "unmatched" });
+}
+
 async function deleteDraft(env: Env, actor: string, id: number) {
   const r = await env.DB.batch([
     env.DB.prepare("DELETE FROM document_lines WHERE document_id = ? AND (SELECT status FROM documents WHERE id = ?) = 'draft'").bind(id, id),
@@ -627,7 +1027,7 @@ export default {
       await ensureSchema(env);
       if (p[0] === "backup" && req.method === "GET") return await handleBackup(env, url, p[1] ?? "");
       const id = p[1] && /^\d{1,15}$/.test(p[1]) ? Number(p[1]) : undefined;
-      if (p[1] && id === undefined && p[0] !== "import") throw new HttpError(404, "Not found");
+      if (p[1] && id === undefined && p[0] !== "import" && p[0] !== "recurring" && p[0] !== "bank") throw new HttpError(404, "Not found");
       const m = req.method;
       if (p[0] === "me" && m === "GET") return await json({ email: actor });
       if (p[0] === "bootstrap" && m === "GET") return await bootstrap(env, url);
@@ -657,6 +1057,13 @@ export default {
       if (p[0] === "recurring" && p[1] === "run" && m === "POST") {
         const b = await body<{ companyId?: string; date?: string }>(req);
         return json(await runRecurringBatch(env, actor, b?.companyId ?? "logia-services", b?.date));
+      }
+            if (p[0] === "bank") {
+        if (p[1] === "import" && m === "POST") return await handleBankImport(env, actor, await body<BankImportIn>(req));
+        if (p[1] === "transactions" && m === "GET") return await listBankTransactions(env, url.searchParams.get("company") ?? "logia-services", url.searchParams.get("status") ?? undefined);
+        if (p[1] === "match" && m === "POST") return await handleBankMatch(env, actor, await body<{ transactionId: number; documentId: number; amountCents?: number; note?: string }>(req));
+        if (p[1] === "ignore" && m === "POST") return await handleBankIgnore(env, actor, await body<{ transactionId: number }>(req));
+        if (p[1] === "unmatch" && m === "POST") return await handleBankUnmatch(env, actor, await body<{ transactionId: number }>(req));
       }
       if (p[0] === "import" && p[1] && m === "POST") return await importChunk(env, actor, p[1], await body(req));
       throw new HttpError(404, "Not found");

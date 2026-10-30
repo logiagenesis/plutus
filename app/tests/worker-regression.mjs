@@ -1,17 +1,86 @@
-// Regression tests for the 30 Oct 2026 audit findings (F01, F02, F04, F08, F10, F11) and payments.
-// Runs the real Worker against an in-memory SQLite database shaped like D1. Synthetic data only.
-// Run: node tests/worker-regression.mjs   (from app/)
-import { DatabaseSync } from "node:sqlite";
-import { readFileSync, mkdirSync } from "node:fs";
-import { build } from "esbuild";
+import { readFileSync, mkdirSync, unlinkSync, existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { webcrypto } from "node:crypto";
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
 import assert from "node:assert/strict";
 
 mkdirSync(".test-build", { recursive: true });
-await build({ entryPoints: ["worker/index.ts"], bundle: true, platform: "neutral", format: "esm", outfile: ".test-build/worker.mjs", logLevel: "error" });
+try {
+  const { build } = await import("esbuild");
+  await build({ entryPoints: ["worker/index.ts"], bundle: true, platform: "neutral", format: "esm", outfile: ".test-build/worker.mjs", logLevel: "error" });
+} catch {
+  const { execSync } = await import("node:child_process");
+  execSync("NODE_PATH=/usr/share/nodejs node tests/build-worker.cjs", { stdio: "inherit" });
+}
 const { default: worker } = await import(new URL("../.test-build/worker.mjs", import.meta.url));
 
+class DatabaseSyncPolyfill {
+  constructor(id = Math.random().toString(36).slice(2)) {
+    this.dbFile = `/tmp/test_poly_${id}.db`;
+    if (existsSync(this.dbFile)) unlinkSync(this.dbFile);
+    this.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
+  }
+  _call(act, payload) {
+    const p = spawnSync("python3", ["-c", `
+import sqlite3, sys, json
+conn = sqlite3.connect(sys.argv[1], timeout=30.0)
+conn.row_factory = sqlite3.Row
+act = sys.argv[2]
+payload = json.loads(sys.argv[3])
+
+try:
+    cur = conn.cursor()
+    if act == "exec":
+        conn.executescript(payload["sql"])
+        conn.commit()
+        print(json.dumps({"ok": True}))
+    elif act == "run":
+        cur.execute(payload["sql"], payload.get("args", []))
+        conn.commit()
+        print(json.dumps({"ok": True, "changes": cur.rowcount}))
+    elif act == "get":
+        cur.execute(payload["sql"], payload.get("args", []))
+        r = cur.fetchone()
+        conn.commit()
+        print(json.dumps({"ok": True, "res": dict(r) if r else None}))
+    elif act == "all":
+        cur.execute(payload["sql"], payload.get("args", []))
+        rows = cur.fetchall()
+        print(json.dumps({"ok": True, "res": [dict(r) for r in rows]}))
+    elif act == "batch":
+        conn.execute("BEGIN")
+        res = []
+        for s in payload["statements"]:
+            cur.execute(s["sql"], s.get("args", []))
+            rows = cur.fetchall()
+            n = conn.execute("SELECT changes() AS n").fetchone()[0]
+            res.append({"results": [dict(r) for r in rows], "meta": {"changes": n}})
+        conn.execute("COMMIT")
+        print(json.dumps({"ok": True, "res": res}))
+except Exception as e:
+    try: conn.execute("ROLLBACK")
+    except: pass
+    print(json.dumps({"ok": False, "err": str(e)}))
+`, this.dbFile, act, JSON.stringify(payload)], { encoding: "utf8" });
+    if (p.error) throw p.error;
+    if (p.status !== 0) throw new Error(p.stderr || p.stdout);
+    const res = JSON.parse(p.stdout);
+    if (!res.ok) throw new Error(res.err);
+    return res;
+  }
+  exec(sql) { this._call("exec", { sql }); }
+  prepare(sql) {
+    const self = this;
+    return {
+      run(...args) { return { changes: self._call("run", { sql, args }).changes }; },
+      get(...args) { return self._call("get", { sql, args }).res; },
+      all(...args) { return self._call("all", { sql, args }).res; }
+    };
+  }
+}
+
 class DB {
-  constructor() { this.db = new DatabaseSync(":memory:"); this.db.exec("PRAGMA foreign_keys=ON"); this.barrier = null; }
+  constructor() { this.db = new DatabaseSyncPolyfill(); this.barrier = null; }
   prepare(sql) {
     const d = this;
     return {
@@ -23,11 +92,9 @@ class DB {
     };
   }
   async batch(st) {
-    this.db.exec("BEGIN");
-    try {
-      const out = st.map((s) => { const results = this.db.prepare(s.sql).all(...s.args); return { results, meta: { changes: Number(this.db.prepare("SELECT changes() n").get().n) } }; });
-      this.db.exec("COMMIT"); return out;
-    } catch (e) { this.db.exec("ROLLBACK"); throw e; }
+    const statements = st.map((s) => ({ sql: s.sql, args: s.args }));
+    const r = this.db._call("batch", { statements });
+    return r.res;
   }
 }
 
@@ -143,6 +210,48 @@ ok("recurring run generates invoice", recRun.status === 200 && recRun.body.gener
 
 let recRunAgain = await call(env, "recurring/run", "POST", { companyId: "logia-services", date: "2026-11-25" });
 ok("re-running recurring batch in same month skips existing (0 duplicates)", recRunAgain.status === 200 && recRunAgain.body.generatedCount === 0 && recRunAgain.body.skippedCount === 1);
+
+// Piece 4: FNB Bank Statement CSV Reconciliation
+const issued = (await call(env, "documents/" + inv.id)).body;
+const sampleCsv = `Date,Amount,Balance,Description
+2026/10/25,60.00,10500.00,EFT PAYMENT ${issued.number} LOGIA
+2026/10/26,60.00,10560.00,DEP FROM RENAMED
+2026/10/27,-50.00,10510.00,SERVICE FEES
+`;
+
+let bankImp = await call(env, "bank/import", "POST", { companyId: "logia-services", filename: "fnb_oct_2026.csv", csvContent: sampleCsv });
+ok("bank statement imports valid rows", bankImp.status === 200 && bankImp.body.importedCount === 3 && bankImp.body.skippedCount === 0);
+
+let bankImpDup = await call(env, "bank/import", "POST", { companyId: "logia-services", filename: "fnb_oct_2026.csv", csvContent: sampleCsv });
+ok("re-importing same statement skips duplicate transactions", bankImpDup.status === 200 && bankImpDup.body.importedCount === 0 && bankImpDup.body.skippedCount === 3);
+
+let bankList = await call(env, "bank/transactions?company=logia-services");
+ok("bank transactions list returns imported deposits with suggestions", bankList.status === 200 && bankList.body.transactions.length >= 3);
+
+const tx1 = bankList.body.transactions.find((t) => t.description.includes(issued.number));
+ok("exact invoice reference matched with high confidence", !!tx1 && tx1.suggestion?.documentId === inv.id && tx1.suggestion?.confidence === "high");
+
+let matchRes = await call(env, "bank/match", "POST", { transactionId: tx1.id, documentId: inv.id });
+ok("bank transaction matched and payment recorded on invoice", matchRes.status === 200 && matchRes.body.ok === true);
+
+// Verify invoice is now paid
+let docAfterPay = await call(env, "documents/" + inv.id);
+const totalPaidAfter = docAfterPay.body.payments.filter((p) => !p.voided_at).reduce((a, p) => a + p.amount_cents, 0);
+ok("invoice open balance reflects payment from bank transaction", totalPaidAfter === 10000);
+
+// Verify matching already-paid invoice fails gracefully
+const tx2 = bankList.body.transactions.find((t) => t.description.includes("RENAMED"));
+let matchOver = await call(env, "bank/match", "POST", { transactionId: tx2.id, documentId: inv.id });
+ok("matching already-paid invoice is refused", matchOver.status === 400);
+
+// Unmatch transaction restores open balance
+let unmatchRes = await call(env, "bank/unmatch", "POST", { transactionId: tx1.id });
+ok("unmatching transaction reverses payment and resets status", unmatchRes.status === 200 && unmatchRes.body.status === "unmatched");
+
+let docAfterUnmatch = await call(env, "documents/" + inv.id);
+const totalPaidUnmatch = docAfterUnmatch.body.payments.filter((p) => !p.voided_at).reduce((a, p) => a + p.amount_cents, 0);
+ok("invoice open balance restored after unmatch", totalPaidUnmatch === 4000);
+
 
 // F08: clearing a password (reset) ends existing sessions
 db.db.prepare("UPDATE users SET password_hash=NULL WHERE id=1").run();

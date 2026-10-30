@@ -16,9 +16,10 @@ async function upgrade(env: Env): Promise<boolean> {
       (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='documents') AS docs,
       (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='payments') AS pays,
       (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='email_messages') AS emails,
-      (SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name IN ('edit_token','company_snapshot_json','sent_at','sent_to','recurring_template_id','recurring_period')) AS cols`).first<{ docs: number; pays: number; emails: number; cols: number }>();
+      (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='bank_transactions') AS btx,
+      (SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name IN ('edit_token','company_snapshot_json','sent_at','sent_to','recurring_template_id','recurring_period')) AS cols`).first<{ docs: number; pays: number; emails: number; btx: number; cols: number }>();
   if (!c?.docs) return false;
-  if (c.pays === 1 && c.emails === 1 && c.cols === 6) return true;
+  if (c.pays === 1 && c.emails === 1 && c.btx === 1 && c.cols === 6) return true;
   const doc = await columns(env, "documents");
   const st: D1PreparedStatement[] = [];
   // Per-save token: only the request that actually updated the header may replace the lines (audit F01).
@@ -65,13 +66,44 @@ async function upgrade(env: Env): Promise<boolean> {
   st.push(env.DB.prepare("CREATE INDEX IF NOT EXISTS emails_document ON email_messages(document_id)"));
   st.push(env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS doc_recurring_unique ON documents(recurring_template_id, recurring_period) WHERE status <> 'void'"));
 
+  // Piece 4: Bank reconciliation
+  st.push(env.DB.prepare(`CREATE TABLE IF NOT EXISTS bank_statements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_id TEXT NOT NULL REFERENCES companies(id),
+    filename TEXT NOT NULL,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    checksum TEXT,
+    imported_by TEXT NOT NULL,
+    imported_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  )`));
+
+  st.push(env.DB.prepare(`CREATE TABLE IF NOT EXISTS bank_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    statement_id INTEGER NOT NULL REFERENCES bank_statements(id) ON DELETE CASCADE,
+    company_id TEXT NOT NULL REFERENCES companies(id),
+    date TEXT NOT NULL,
+    description TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    balance_cents INTEGER,
+    transaction_hash TEXT NOT NULL,
+    matched_document_id INTEGER REFERENCES documents(id),
+    matched_at TEXT,
+    match_type TEXT,
+    status TEXT NOT NULL DEFAULT 'unmatched',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  )`));
+  st.push(env.DB.prepare("CREATE INDEX IF NOT EXISTS bank_tx_company_status ON bank_transactions(company_id, status)"));
+  st.push(env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS bank_tx_hash_unique ON bank_transactions(company_id, transaction_hash)"));
+  st.push(env.DB.prepare("CREATE INDEX IF NOT EXISTS bank_tx_matched_doc ON bank_transactions(matched_document_id)"));
+
   try { await env.DB.batch(st); }
   catch (e) {
     // Another request may have upgraded at the same moment; fine if everything is now in place.
     const now = await columns(env, "documents");
     const pay = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='payments'").first();
     const em = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='email_messages'").first();
-    if (!(now.has("edit_token") && now.has("company_snapshot_json") && now.has("sent_at") && now.has("recurring_template_id") && pay && em)) throw e;
+    const btx = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='bank_transactions'").first();
+    if (!(now.has("edit_token") && now.has("company_snapshot_json") && now.has("sent_at") && now.has("recurring_template_id") && pay && em && btx)) throw e;
   }
   return true;
 }

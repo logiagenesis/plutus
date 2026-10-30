@@ -7,7 +7,8 @@ import Editor from "./pages/Editor";
 import { CustomerList, CustomerView } from "./pages/Customers";
 import RecurringPage from "./pages/Recurring";
 import Items from "./pages/Items";
-import { Banking, Settings, NotSetUp } from "./pages/Other";
+import Banking from "./pages/Banking";
+import { Settings, NotSetUp } from "./pages/Other";
 import { CustomerForm, ItemForm } from "./pages/Forms";
 import ImportPage from "./pages/Import";
 import { api } from "./data";
@@ -53,7 +54,7 @@ const NAV = [
   { path: "/customers", label: "Customers", icon: I.users },
   { path: "/recurring", label: "Recurring", icon: I.repeat },
   { path: "/items", label: "Items", icon: I.box },
-  { path: "/banking", label: "Bank", icon: I.bank, soon: "Soon" },
+  { path: "/banking", label: "Bank", icon: I.bank },
   { path: "/settings", label: "Settings", icon: I.cog },
 ];
 const COMPANY_STYLE: Record<string, string> = {

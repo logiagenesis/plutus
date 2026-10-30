@@ -154,3 +154,35 @@ export function quoteStatus(d: Doc): { label: string; tone: Tone } {
   if (!d.sageStatus) return d.sentAt ? { label: "Sent", tone: "ok" } : { label: "Issued", tone: "info" };
   return { label: d.sageStatus, tone: "plain" };
 }
+
+export type BankTransaction = {
+  id: number;
+  statementId: number;
+  companyId: string;
+  date: string;
+  description: string;
+  amountCents: number;
+  balanceCents: number | null;
+  status: "unmatched" | "matched" | "ignored";
+  matchedDocumentId: number | null;
+  matchedAt: string | null;
+  matchType: string | null;
+  suggestion?: {
+    documentId: number;
+    invoiceNumber: string;
+    fromNumber: string | null;
+    customerName: string;
+    openCents: number;
+    confidence: "high" | "medium" | "low";
+    reason: string;
+  } | null;
+};
+
+export type BankStats = {
+  total: number;
+  unmatched_deposits_count: number;
+  unmatched_deposits_cents: number;
+  matched_count: number;
+  matched_cents: number;
+  ignored_count: number;
+};
