@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../App";
 import { api, fmtDate, type StatementData } from "../data";
 import { rand } from "../money";
-import { I, Empty } from "../ui";
+import { I } from "../ui";
 
 export default function CustomerStatement({ id }: { id: number }) {
   const { notify } = useApp();

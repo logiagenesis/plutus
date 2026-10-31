@@ -48,7 +48,7 @@ type Ctx = { companyId: string; setCompanyId: (id: string) => void; reload: () =
 const AppCtx = createContext<Ctx>(null as unknown as Ctx);
 export const useApp = () => useContext(AppCtx);
 
-const NAV = [
+const NAV: { path: string; label: string; icon: typeof I.home; soon?: string }[] = [
   { path: "/", label: "Home", icon: I.home },
   { path: "/invoices", label: "Invoices", icon: I.invoice },
   { path: "/quotes", label: "Quotes", icon: I.quote },

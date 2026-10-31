@@ -35,7 +35,7 @@ export type Customer = {
   postalAddress: string[] | null; deliveryAddress: string[] | null; active: boolean; sageBalanceCents: number | null; version: number;
 };
 export type Item = { sageId: number; code: string | null; description: string; category: string | null; unit: string | null; priceExclCents: number; active: boolean; version: number };
-export type Company = { id: string; displayName: string; registeredName?: string | null; registrationNumber?: string | null; email?: string | null; telephone?: string | null; address?: string[] | null; setUp: boolean; defaultMessage?: string | null };
+export type Company = { id: string; displayName: string; registeredName?: string | null; registrationNumber?: string | null; vatNumber?: string | null; email?: string | null; telephone?: string | null; address?: string[] | null; setUp: boolean; defaultMessage?: string | null };
 
 type Data = { companyId: string; companies: Company[]; customers: Customer[]; items: Item[]; recurring: Recurring[]; documents: Doc[]; invoiceMessage: string | null; sequences: { kind: string; prefix: string; width: number; next_value: number }[] };
 
@@ -78,7 +78,7 @@ export let quotes: Doc[] = [];
 
 export async function loadData(companyId: string) {
   const b = await api<any>(`bootstrap?company=${encodeURIComponent(companyId)}`);
-  const companies: Company[] = b.companies.map((c: any) => ({ id: c.id, displayName: c.display_name, registeredName: c.registered_name, registrationNumber: c.registration_number, email: c.email, telephone: c.telephone, address: parseAddr(c.address_json), setUp: !!c.set_up, defaultMessage: c.default_message }));
+  const companies: Company[] = b.companies.map((c: any) => ({ id: c.id, displayName: c.display_name, registeredName: c.registered_name, registrationNumber: c.registration_number, vatNumber: c.vat_number, email: c.email, telephone: c.telephone, address: parseAddr(c.address_json), setUp: !!c.set_up, defaultMessage: c.default_message }));
   const customers: Customer[] = b.customers.map((c: any) => ({ sageId: c.id, name: c.name, category: c.category, contactName: c.contact_name, email: c.email, telephone: c.telephone, mobile: c.mobile, vatNumber: c.vat_number, postalAddress: parseAddr(c.postal_address_json), deliveryAddress: parseAddr(c.delivery_address_json), active: !!c.active, sageBalanceCents: c.sage_balance_cents, version: c.version }));
   const items: Item[] = b.items.map((i: any) => ({ sageId: i.id, code: i.code, description: i.description, category: i.category, unit: i.unit, priceExclCents: i.price_excl_cents, active: !!i.active, version: i.version }));
   const linesBy = new Map<number, Line[]>();

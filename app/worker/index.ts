@@ -1185,7 +1185,7 @@ ${co.telephone || ""}
         }),
       });
       if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
+        const errJson = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(`Email provider error: ${errJson.message || res.statusText}`);
       }
       const resData = await res.json() as any;

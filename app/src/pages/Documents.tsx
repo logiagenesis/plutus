@@ -316,7 +316,7 @@ function Payments({ d, onChange }: { d: Doc; onChange: (d: Doc) => Promise<void>
 function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose: () => void; onSent: (d: Doc) => Promise<void> }) {
   const { notify } = useApp();
   const co = d.companySnapshot ?? data.companies.find((c) => c.id === data.companyId) ?? data.companies[0];
-  const c = d.customerSageId ? customersById.get(d.customerSageId) : undefined;
+  const c = d.customerSageId ? data.customers.find((x) => x.sageId === d.customerSageId) : undefined;
   const label = kind === "invoice" ? "Invoice" : "Quotation";
   const defSubject = `${label} ${d.number} from ${co.displayName}`;
   const totalStr = rand(d.totalCents);
