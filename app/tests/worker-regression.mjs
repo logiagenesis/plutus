@@ -204,12 +204,12 @@ ok("email sent in test harness, recorded in history and document state updated",
 
 // Piece 3: Automated Recurring Batch (NF01, NF02)
 db.db.exec("INSERT INTO recurring_templates (company_id, customer_id, frequency, start_date, active, exclusive_cents, tax_cents, total_cents) VALUES ('logia-services', 1, 'monthly', '2026-01-25', 1, 1000, 0, 1000)");
-const tmplId = db.db.prepare("SELECT last_insert_rowid() AS id").get().id;
+const tmplId = db.db.prepare("SELECT MAX(id) AS id FROM recurring_templates").get().id;
 db.db.exec(`INSERT INTO recurring_lines (template_id, line_no, description, quantity, unit_price_excl_cents, exclusive_cents, tax_cents, total_cents) VALUES (${tmplId}, 1, 'Monthly Service', '1', 1000, 1000, 0, 1000)`);
 
 // Future template should not run before start_date (NF02)
 db.db.exec("INSERT INTO recurring_templates (company_id, customer_id, frequency, start_date, active, exclusive_cents, tax_cents, total_cents) VALUES ('logia-services', 1, 'monthly', '2027-06-25', 1, 5000, 0, 5000)");
-const futureTmplId = db.db.prepare("SELECT last_insert_rowid() AS id").get().id;
+const futureTmplId = db.db.prepare("SELECT MAX(id) AS id FROM recurring_templates").get().id;
 db.db.exec(`INSERT INTO recurring_lines (template_id, line_no, description, quantity, unit_price_excl_cents, exclusive_cents, tax_cents, total_cents) VALUES (${futureTmplId}, 1, 'Future Service', '1', 5000, 5000, 0, 5000)`);
 
 let prev = await call(env, "recurring/preview?company=logia-services&date=2026-11-25");
