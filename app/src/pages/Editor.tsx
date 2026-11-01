@@ -5,13 +5,13 @@ import { I } from "../ui";
 import { go, routeQuery, useApp } from "../App";
 import Paper from "./Paper";
 
-type Kind = "invoice" | "quote";
-type EditLine = { key: number; itemSageId: number | null; description: string; comments: string; quantity: string; price: string; discount: string };
+export type Kind = "invoice" | "quote" | "credit_note";
+export type EditLine = { key: number; itemSageId: number | null; description: string; comments: string; quantity: string; price: string; discount: string };
 
 let seq = 1;
-const blank = (): EditLine => ({ key: seq++, itemSageId: null, description: "", comments: "", quantity: "1", price: "", discount: "0" });
+export const blank = (): EditLine => ({ key: seq++, itemSageId: null, description: "", comments: "", quantity: "1", price: "", discount: "0" });
 const endOfMonth = (iso: string) => { const [y, m] = iso.split("-").map(Number); return `${y}-${String(m).padStart(2, "0")}-${new Date(Date.UTC(y, m, 0)).getUTCDate()}`; };
-const centsToStr = (c: number) => (c / 100).toFixed(2);
+export const centsToStr = (c: number) => (c / 100).toFixed(2);
 // Price input → cents. Accepts "1500", "1 500", "1,500.50", "R1500".
 export function parsePrice(s: string): number | null {
   const t = s.replace(/[R\s,]/gi, "");
@@ -20,12 +20,12 @@ export function parsePrice(s: string): number | null {
   const [w, f = ""] = t.split(".");
   return Number(w) * 100 + Number((f + "00").slice(0, 2));
 }
-const okQty = (s: string) => /^\d+(\.\d{1,4})?$/.test(s.trim()) && Number(s) > 0;
-const okDisc = (s: string) => /^\d+(\.\d{1,2})?$/.test(s.trim()) && Number(s) <= 100;
-const fromDocLines = (d: Doc): EditLine[] => d.lines.map((l) => ({ key: seq++, itemSageId: l.itemSageId, description: l.description, comments: l.comments ?? "", quantity: l.quantity, price: centsToStr(l.unitPriceExclCents), discount: String(Number(l.discountPercent)) }));
+export const okQty = (s: string) => /^\d+(\.\d{1,4})?$/.test(s.trim()) && Number(s) > 0;
+export const okDisc = (s: string) => /^\d+(\.\d{1,2})?$/.test(s.trim()) && Number(s) <= 100;
+export const fromDocLines = (d: { lines: Doc["lines"] }): EditLine[] => d.lines.map((l) => ({ key: seq++, itemSageId: l.itemSageId, description: l.description, comments: l.comments ?? "", quantity: l.quantity, price: centsToStr(l.unitPriceExclCents), discount: String(Number(l.discountPercent)) }));
 
 // ── Search-as-you-type picker (customers and items) ──
-function Combo<T>({ label, placeholder, value, items, getLabel, getSub, onPick, onText, autoFocus }: {
+export function Combo<T>({ label, placeholder, value, items, getLabel, getSub, onPick, onText, autoFocus }: {
   label: string; placeholder: string; value: string; items: T[]; getLabel: (t: T) => string; getSub?: (t: T) => string;
   onPick: (t: T) => void; onText?: (s: string) => void; autoFocus?: boolean;
 }) {
@@ -65,6 +65,10 @@ function Combo<T>({ label, placeholder, value, items, getLabel, getSub, onPick, 
   );
 }
 
+const baseFor = (kind: Kind) => kind === "invoice" ? "invoices" : kind === "quote" ? "quotes" : "credit-notes";
+const pluralFor = (kind: Kind) => kind === "invoice" ? "Invoices" : kind === "quote" ? "Quotes" : "Credit Notes";
+const labelFor = (kind: Kind) => kind === "invoice" ? "invoice" : kind === "quote" ? "quote" : "credit note";
+
 export default function Editor({ kind, editId }: { kind: Kind; editId?: number }) {
   const q = routeQuery();
   const fromId = q.get("from");
@@ -78,7 +82,7 @@ export default function Editor({ kind, editId }: { kind: Kind; editId?: number }
       .catch((e) => live && setSt(e instanceof Error ? e.message : String(e)));
     return () => { live = false; };
   }, [editId, fromId]);
-  const back = <a className="crumb" href={`#/${kind === "invoice" ? "invoices" : "quotes"}`}><I.back />{kind === "invoice" ? "Invoices" : "Quotes"}</a>;
+  const back = <a className="crumb" href={`#/${baseFor(kind)}`}><I.back />{pluralFor(kind)}</a>;
   if (st === null) return <div className="page">{back}<div className="skel" style={{ width: 260, height: 34 }} /><div className="skel" style={{ height: 420, marginTop: 22 }} /></div>;
   if (typeof st === "string") return <div className="page">{back}<div className="notice"><I.alert /><div><strong>Couldn’t open that document</strong><p>{st}</p></div></div></div>;
   if (st.editing && st.editing.status !== "draft") return <div className="page">{back}<div className="notice"><I.alert /><div><strong>This document is issued</strong><p>Issued documents are locked. Use Copy to start a new one from it.</p></div></div></div>;
@@ -92,7 +96,7 @@ function EditorForm({ kind, source, editing, initialCustomerId }: { kind: Kind; 
   const [customerId, setCustomerId] = useState<number | null>(init?.customerSageId ?? initialCustomerId ?? null);
   const [date, setDate] = useState(editing?.date ?? today);
   const [due, setDue] = useState(editing?.dueDate ?? endOfMonth(today));
-  const [reference, setReference] = useState(init?.reference ?? "");
+  const [reference, setReference] = useState(init?.reference ?? (kind === "credit_note" && source ? `Credit for ${source.number}` : ""));
   const [vat, setVat] = useState(init ? init.taxCents > 0 || !!init.vat : false);
   const [lines, setLines] = useState<EditLine[]>(() => (init && init.lines.length ? fromDocLines(init) : [blank()]));
   const [message, setMessage] = useState(editing ? editing.message ?? "" : kind === "invoice" ? data.invoiceMessage ?? "" : "");
@@ -102,7 +106,6 @@ function EditorForm({ kind, source, editing, initialCustomerId }: { kind: Kind; 
   const [saveErr, setSaveErr] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
   const firstRef = useRef<HTMLFormElement>(null);
-  // One key per new-document screen: a retry or double-click returns the same draft instead of a second one.
   const clientKey = useRef(crypto.randomUUID());
 
   const customer = customerId ? customersById.get(customerId) : undefined;
@@ -129,11 +132,16 @@ function EditorForm({ kind, source, editing, initialCustomerId }: { kind: Kind; 
     finally { setCopying(false); }
   }
 
+  const base = baseFor(kind);
+  const label = labelFor(kind);
+
   async function save() {
     setTried(true); setSaveErr(null);
     if (!ready) { firstRef.current?.querySelector<HTMLElement>("[aria-invalid=true]")?.focus(); return; }
     const body = {
-      companyId: data.companyId, kind, customerId: customer!.sageId, date, dueDate: due || null, reference: reference || null, message: message || null, vat,
+      companyId: data.companyId, kind, customerId: customer!.sageId, date,
+      dueDate: kind === "credit_note" ? null : (due || null),
+      reference: reference || null, message: message || null, vat,
       fromDocumentId: source?.sageId ?? null, version: editing?.version, clientKey: editing ? undefined : clientKey.current,
       lines: lines.map((l, i) => ({ itemId: l.itemSageId, description: l.description.trim(), comments: l.comments.trim() || null, unit: l.itemSageId ? itemsById.get(l.itemSageId)?.unit ?? null : null,
         quantity: calcInput[i].quantity, unitPriceExclCents: calcInput[i].unitPriceExclCents, discountPercent: calcInput[i].discountPercent })),
@@ -143,20 +151,19 @@ function EditorForm({ kind, source, editing, initialCustomerId }: { kind: Kind; 
       const saved = await api<any>(editing ? `documents/${editing.sageId}` : "documents", { method: editing ? "PUT" : "POST", body });
       if (saved.total_cents !== totals.totalCents) console.warn("Server total differs from screen total", saved.total_cents, totals.totalCents);
       await reload();
-      notify(saved.notice ?? `Draft ${kind === "invoice" ? "invoice" : "quote"} saved · ${rand(saved.total_cents)}`);
-      go(`/${kind === "invoice" ? "invoices" : "quotes"}/${saved.id}`, true);
+      notify(saved.notice ?? `Draft ${label} saved · ${rand(saved.total_cents)}`);
+      go(`/${base}/${saved.id}`, true);
     } catch (e) { setSaveErr(e instanceof Error ? e.message : String(e)); setSaving(false); }
   }
 
   const number = nextNumber(kind);
-  const label = kind === "invoice" ? "invoice" : "quote";
   const bad = (ok: boolean) => (tried && !ok ? "true" : undefined);
 
   return (
     <div className="page">
-      <a className="crumb" href={`#/${kind === "invoice" ? "invoices" : "quotes"}`}><I.back />{kind === "invoice" ? "Invoices" : "Quotes"}</a>
+      <a className="crumb" href={`#/${base}`}><I.back />{pluralFor(kind)}</a>
       <div className="page-head">
-        <div><h1>{editing ? `Edit draft ${label}` : `New ${label}`}</h1><p className="sub">{source ? `Copied from ${source.number} · ` : ""}Gets number {number} when you issue it</p></div>
+        <div><h1>{editing ? `Edit draft ${label}` : `New ${label}`}</h1><p className="sub">{source ? `${kind === "credit_note" ? "Crediting" : "Copied from"} ${source.number} · ` : ""}Gets number {number} when you issue it</p></div>
       </div>
       <div className="seg preview-tabs" role="group" aria-label="View">
         <button aria-pressed={view === "edit"} onClick={() => setView("edit")}>Edit</button>
@@ -184,14 +191,16 @@ function EditorForm({ kind, source, editing, initialCustomerId }: { kind: Kind; 
           </div>
 
           <div className="form-row">
-            <label className="field"><span>{kind === "invoice" ? "Invoice date" : "Quote date"}</span><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
-            <label className="field"><span>{kind === "invoice" ? "Due date" : "Valid until"}</span><input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
-            <label className="field"><span>Reference <span className="faint">(optional)</span></span><input className="input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. PO number" /></label>
+            <label className="field"><span>{kind === "invoice" ? "Invoice date" : kind === "quote" ? "Quote date" : "Credit note date"}</span><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+            {kind !== "credit_note" && (
+              <label className="field"><span>{kind === "invoice" ? "Due date" : "Valid until"}</span><input className="input" type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
+            )}
+            <label className="field"><span>Reference <span className="faint">(optional)</span></span><input className="input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder={kind === "credit_note" ? "Reason or invoice number" : "e.g. PO number"} /></label>
           </div>
 
           <div className="stack" style={{ gap: 10 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <h2>What you’re charging for</h2>
+              <h2>{kind === "credit_note" ? "Items being credited" : "What you’re charging for"}</h2>
               <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer" }} className="muted">
                 <input type="checkbox" checked={vat} onChange={(e) => setVat(e.target.checked)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} />
                 Add VAT (15%)
@@ -222,25 +231,27 @@ function EditorForm({ kind, source, editing, initialCustomerId }: { kind: Kind; 
             <span className="muted">Subtotal</span><span className="r">{rand(totals.exclusiveCents)}</span>
             {totals.discountCents > 0 && <><span className="muted">Includes discount</span><span className="r muted">−{rand(totals.discountCents)}</span></>}
             <span className="muted">VAT {vat ? "15%" : ""}</span><span className="r">{rand(totals.taxCents)}</span>
-            <span className="grand">Total</span><span className="grand r">{rand(totals.totalCents)}</span>
+            <span className="grand">{kind === "credit_note" ? "Total credit" : "Total"}</span><span className="grand r">{rand(totals.totalCents)}</span>
           </div>
 
-          <label className="field"><span>Message on the {label}</span><textarea className="input" rows={5} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Payment details, thank-you note…" /></label>
+          <label className="field"><span>Message on the {label}</span><textarea className="input" rows={4} value={message} onChange={(e) => setMessage(e.target.value)} placeholder={kind === "credit_note" ? "Reason for credit note…" : "Payment details, thank-you note…"} /></label>
 
           <div className="savebar glass">
             <span className="muted" style={{ fontSize: 13 }} role="status">{saveErr ? <span className="err">{saveErr}</span> : ready ? `Ready · ${rand(totals.totalCents)} to ${customer!.name}` : tried ? "Fix the highlighted fields" : "Saved drafts can be edited until you issue them"}</span>
             <div className="toolbar">
-              <button type="button" className="btn ghost opt" onClick={() => go(kind === "invoice" ? "/invoices" : "/quotes")}>Cancel</button>
+              <button type="button" className="btn ghost opt" onClick={() => go(`/${base}`)}>Cancel</button>
               <button type="submit" className="btn primary" disabled={saving}><I.check />{saving ? "Saving…" : "Save draft"}</button>
             </div>
           </div>
         </form>
 
         <div className="paper-wrap">
-          <Paper kind={kind} number="Draft" date={date} dueDate={due} reference={reference} customerSageId={customerId} draft
+          <Paper kind={kind} number="Draft" date={date} dueDate={kind === "credit_note" ? null : due} reference={reference}
+            fromDocument={editing?.fromDocument ?? source?.number ?? null}
+            customerSageId={customerId} draft
             lines={lines.map((l, i) => ({ description: l.description, comments: l.comments, quantity: calcInput[i].quantity, unitPriceExclCents: calcInput[i].unitPriceExclCents, discountPercent: calcInput[i].discountPercent, taxRate: calcInput[i].taxRate, ...totals.lines[i] }))}
             exclusiveCents={totals.exclusiveCents} taxCents={totals.taxCents} totalCents={totals.totalCents} discountCents={totals.discountCents} message={message} />
-          <p className="faint" style={{ fontSize: 12, marginTop: 10, textAlign: "center" }}>Live preview · due {fmtDate(due)}</p>
+          <p className="faint" style={{ fontSize: 12, marginTop: 10, textAlign: "center" }}>Live preview{kind !== "credit_note" ? ` · due ${fmtDate(due)}` : ""}</p>
         </div>
       </div>
     </div>

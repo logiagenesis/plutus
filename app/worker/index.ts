@@ -25,6 +25,30 @@ const safeJson = <T>(s: unknown, fallback: T): T => {
 };
 const todaySAST = (): string => new Date(Date.now() + 2 * 3600_000).toISOString().slice(0, 10);
 
+function escHtml(s: unknown): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function toBase64Utf8(s: string): string {
+  const bytes = new TextEncoder().encode(s);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+function fmtRands(cents: number): string {
+  const neg = cents < 0;
+  const abs = Math.abs(cents);
+  const whole = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const dec = String(abs % 100).padStart(2, "0");
+  return `${neg ? "- " : ""}R ${whole}.${dec}`;
+}
+
 function extractBankBlock(defaultMessage?: string | null, companyName?: string | null, companyEmail?: string | null, reference?: string | null) {
   const msg = defaultMessage ?? "";
   const pick = (label: string, fallback: string) => {
@@ -77,16 +101,11 @@ function isCalendarDate(s: unknown): s is string {
 const MAX_QTY = 1_000_000;
 const MAX_UNIT_PRICE_CENTS = 1_000_000_000; // R10 million per unit
 
-function validateDoc(d: DocIn) {
-  if (!["invoice", "quote", "credit_note"].includes(d.kind)) throw bad("Unknown document type");
-  if (!Number.isSafeInteger(d.customerId)) throw bad("Choose a customer");
-  if (!isCalendarDate(d.date)) throw bad("The date is not a real date");
-  if (d.dueDate && !isCalendarDate(d.dueDate)) throw bad("The due date is not a real date");
-  if (d.dueDate && d.dueDate < d.date) throw bad(d.kind === "quote" ? "Valid-until date is before the quote date" : "Due date is before the invoice date");
-  if (!Array.isArray(d.lines) || d.lines.length === 0) throw bad("Add at least one line");
-  if (d.lines.length > 200) throw bad("Too many lines");
-  const taxRate = d.vat ? "0.15" : "0";
-  const lines = d.lines.map((l, i) => {
+function validateLines(rawLines: LineIn[], vat: boolean) {
+  if (!Array.isArray(rawLines) || rawLines.length === 0) throw bad("Add at least one line");
+  if (rawLines.length > 200) throw bad("Too many lines");
+  const taxRate = vat ? "0.15" : "0";
+  const lines = rawLines.map((l, i) => {
     const description = str(l.description, 300);
     if (!description) throw bad(`Line ${i + 1}: add a description`);
     if (!QTY.test(String(l.quantity)) || Number(l.quantity) <= 0 || Number(l.quantity) > MAX_QTY) throw bad(`Line ${i + 1}: quantity must be more than 0 and at most ${MAX_QTY.toLocaleString("en-ZA")}`);
@@ -104,6 +123,15 @@ function validateDoc(d: DocIn) {
   const all = [totals.discountCents, totals.exclusiveCents, totals.taxCents, totals.totalCents, ...totals.lines.flatMap((t) => [t.grossCents, t.exclusiveCents, t.taxCents, t.totalCents])];
   if (!all.every((n) => Number.isSafeInteger(n))) throw bad("The document total is too large to calculate exactly");
   return { lines, totals, taxRate };
+}
+
+function validateDoc(d: DocIn) {
+  if (!["invoice", "quote", "credit_note"].includes(d.kind)) throw bad("Unknown document type");
+  if (!Number.isSafeInteger(d.customerId)) throw bad("Choose a customer");
+  if (!isCalendarDate(d.date)) throw bad("The date is not a real date");
+  if (d.dueDate && !isCalendarDate(d.dueDate)) throw bad("The due date is not a real date");
+  if (d.dueDate && d.dueDate < d.date) throw bad(d.kind === "quote" ? "Valid-until date is before the quote date" : "Due date is before the document date");
+  return validateLines(d.lines, d.vat);
 }
 
 // Every item on a document must belong to the document's company (audit F10).
@@ -125,6 +153,12 @@ function lineStatements(env: Env, docIdSql: string, guardSql: string, guardBinds
   });
 }
 
+// SQL expression for total settled cents on an invoice (cash/bank payments + issued credit notes linked to the invoice)
+const INVOICE_SETTLED_SQL = `(
+  (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL) +
+  (SELECT COALESCE(SUM(cn.total_cents), 0) FROM documents cn WHERE cn.company_id = d.company_id AND cn.kind = 'credit_note' AND cn.status = 'issued' AND (cn.from_document_id = d.id OR (cn.from_document_id IS NULL AND cn.from_number IS NOT NULL AND cn.from_number = d.number)))
+)`;
+
 // ───────── routes ─────────
 async function bootstrap(env: Env, url: URL) {
   const company = url.searchParams.get("company") ?? "logia-services";
@@ -138,7 +172,7 @@ async function bootstrap(env: Env, url: URL) {
     env.DB.prepare(`SELECT d.id, d.kind, d.number, d.status, d.customer_id, d.date, d.due_date, d.reference, d.tax_cents, d.total_cents, d.sage_status, d.from_number, d.version, d.source, d.sent_at, d.sent_to,
         (SELECT description FROM document_lines WHERE document_id = d.id AND line_no = 1) AS first_line,
         (SELECT COUNT(*) FROM document_lines WHERE document_id = d.id) AS line_count,
-        (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL) AS paid_cents
+        CASE WHEN d.kind = 'invoice' THEN ${INVOICE_SETTLED_SQL} ELSE 0 END AS paid_cents
       FROM documents d WHERE d.company_id = ? ORDER BY d.date DESC, d.id DESC`).bind(company),
     env.DB.prepare("SELECT kind, prefix, width, next_value FROM number_sequences WHERE company_id = ?").bind(company),
   ]);
@@ -146,14 +180,20 @@ async function bootstrap(env: Env, url: URL) {
 }
 
 async function getDocument(env: Env, id: number, extra: Record<string, unknown> = {}) {
-  const [d, lines, pays, ems] = await env.DB.batch([
-    env.DB.prepare("SELECT * FROM documents WHERE id = ?").bind(id),
+  const [d, lines, pays, ems, creds] = await env.DB.batch([
+    env.DB.prepare(`SELECT d.*,
+      CASE WHEN d.kind = 'invoice' THEN ${INVOICE_SETTLED_SQL} ELSE 0 END AS paid_cents
+      FROM documents d WHERE d.id = ?`).bind(id),
     env.DB.prepare("SELECT * FROM document_lines WHERE document_id = ? ORDER BY line_no").bind(id),
     env.DB.prepare("SELECT id, date, amount_cents, method, reference, note, created_by, created_at, voided_at, voided_by FROM payments WHERE document_id = ? ORDER BY date, id").bind(id),
     env.DB.prepare("SELECT id, recipient_email, cc_email, subject, status, provider_id, created_by, created_at FROM email_messages WHERE document_id = ? ORDER BY id DESC").bind(id),
+    env.DB.prepare(`SELECT id, number, date, total_cents, status FROM documents
+      WHERE kind = 'credit_note' AND status <> 'void'
+        AND (from_document_id = ? OR (from_document_id IS NULL AND from_number IS NOT NULL AND from_number = (SELECT number FROM documents WHERE id = ?) AND company_id = (SELECT company_id FROM documents WHERE id = ?)))
+      ORDER BY id DESC`).bind(id, id, id),
   ]);
   if (!d.results[0]) throw new HttpError(404, "Document not found");
-  return json({ ...d.results[0], lines: lines.results, payments: pays.results, emails: (ems?.results ?? []), ...extra });
+  return json({ ...d.results[0], lines: lines.results, payments: pays.results, emails: (ems?.results ?? []), creditNotes: (creds?.results ?? []), ...extra });
 }
 
 async function createDocument(env: Env, actor: string, d: DocIn) {
@@ -264,13 +304,13 @@ async function addPayment(env: Env, actor: string, docId: number, p: PaymentIn) 
   const amount = int(p.amountCents, "Amount");
   if (amount <= 0) throw bad("Enter an amount above R 0.00");
   const key = typeof p.clientKey === "string" && /^[A-Za-z0-9-_]{16,80}$/.test(p.clientKey) ? p.clientKey : crypto.randomUUID();
-  // Never more than what is still open on the invoice; checked inside the INSERT so two clicks can't both pass.
+  // Never more than what is still open on the invoice (after payments and linked credit notes).
   const res = await env.DB.batch([
     env.DB.prepare(`INSERT INTO payments (company_id, document_id, date, amount_cents, method, reference, note, client_key, created_by)
       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
       WHERE NOT EXISTS (SELECT 1 FROM payments WHERE client_key = ?)
-        AND ? <= (SELECT total_cents FROM documents WHERE id = ?) - (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = ? AND voided_at IS NULL)`)
-      .bind(d.company_id, docId, p.date, amount, str(p.method, 40), str(p.reference, 120), str(p.note, 500), key, actor, key, amount, docId, docId),
+        AND ? <= (SELECT d.total_cents - ${INVOICE_SETTLED_SQL} FROM documents d WHERE d.id = ?)`)
+      .bind(d.company_id, docId, p.date, amount, str(p.method, 40), str(p.reference, 120), str(p.note, 500), key, actor, key, amount, docId),
     env.DB.prepare(`INSERT INTO audit_events (actor, action, entity, entity_id, detail_json)
       SELECT ?, 'payment_add', 'document', ?, ? WHERE (SELECT changes()) = 1`)
       .bind(actor, docId, JSON.stringify({ amount, date: p.date })),
@@ -291,18 +331,215 @@ async function voidPayment(env: Env, actor: string, docId: number, paymentId: nu
   return getDocument(env, docId);
 }
 
+// ───────── HTML email & printable attachment templates ─────────
+function renderDocumentHtml(d: {
+  kind: string; number: string; date: string; due_date: string | null; reference: string | null;
+  exclusive_cents: number; tax_cents: number; total_cents: number; from_number?: string | null;
+  company_name: string; company_registered_name?: string | null; company_reg_no?: string | null; company_vat?: string | null;
+  company_email?: string | null; company_tel?: string | null; company_address?: string[];
+  customer_name: string; customer_contact?: string | null; customer_email?: string | null; customer_vat?: string | null; customer_address?: string[];
+}, lines: Array<{ line_no: number; description: string; comments?: string | null; quantity: string; unit_price_excl_cents: number; discount_percent?: string; total_cents: number }>, bankInfo: ReturnType<typeof extractBankBlock>, customIntro?: string | null): string {
+  const title = d.kind === "invoice" ? (d.tax_cents > 0 ? "Tax Invoice" : "Invoice") : d.kind === "quote" ? "Quotation" : "Credit Note";
+  const rowsHtml = lines.map((l) => `
+    <tr>
+      <td style="padding:10px 8px;border-bottom:1px solid #e5e8ef;">
+        <div style="font-weight:600;color:#141821;">${escHtml(l.description)}</div>
+        ${l.comments ? `<div style="font-size:12px;color:#5a6270;margin-top:3px;white-space:pre-line;">${escHtml(l.comments)}</div>` : ""}
+      </td>
+      <td style="padding:10px 8px;border-bottom:1px solid #e5e8ef;text-align:right;font-variant-numeric:tabular-nums;">${escHtml(Number(l.quantity))}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #e5e8ef;text-align:right;font-variant-numeric:tabular-nums;">${escHtml(fmtRands(l.unit_price_excl_cents))}</td>
+      <td style="padding:10px 8px;border-bottom:1px solid #e5e8ef;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;">${escHtml(fmtRands(l.total_cents))}</td>
+    </tr>`).join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>${escHtml(title)} ${escHtml(d.number)} — ${escHtml(d.company_name)}</title>
+<style>
+  @media print { body { background: #fff !important; padding: 0 !important; } .card { box-shadow: none !important; border: none !important; } }
+</style>
+</head>
+<body style="margin:0;padding:24px;background:#f4f6fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#141821;">
+  ${customIntro ? `<div style="max-width:760px;margin:0 auto 18px;padding:16px 20px;background:#ffffff;border-radius:10px;border:1px solid #e2e6ef;white-space:pre-line;font-size:14px;line-height:1.55;color:#2c3340;">${escHtml(customIntro)}</div>` : ""}
+  <div class="card" style="max-width:760px;margin:0 auto;background:#ffffff;border-radius:12px;border:1px solid #dfe4ee;padding:36px;">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:28px;">
+      <tr>
+        <td style="vertical-align:top;">
+          <div style="font-size:20px;font-weight:700;color:#0e131d;">${escHtml(d.company_name)}</div>
+          <div style="font-size:12px;color:#5a6270;line-height:1.5;margin-top:4px;">
+            ${d.company_reg_no ? `Reg. No. ${escHtml(d.company_reg_no)}<br/>` : ""}
+            ${d.company_vat ? `VAT No. ${escHtml(d.company_vat)}<br/>` : ""}
+            ${(d.company_address ?? []).map(escHtml).join(", ")}${d.company_address?.length ? "<br/>" : ""}
+            ${[d.company_email, d.company_tel].filter(Boolean).map(escHtml).join(" · ")}
+          </div>
+        </td>
+        <td style="vertical-align:top;text-align:right;">
+          <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.08em;color:#5a6270;font-weight:600;">${escHtml(title)}</div>
+          <div style="font-size:24px;font-weight:700;color:#0e131d;margin-top:2px;">${escHtml(d.number)}</div>
+          <div style="font-size:12px;color:#5a6270;margin-top:6px;">
+            Date: <strong>${escHtml(d.date)}</strong>
+            ${d.due_date ? `<br/>${d.kind === "quote" ? "Valid Until" : "Due Date"}: <strong>${escHtml(d.due_date)}</strong>` : ""}
+            ${d.reference ? `<br/>Ref: <strong>${escHtml(d.reference)}</strong>` : ""}
+            ${d.from_number ? `<br/>From: <strong>${escHtml(d.from_number)}</strong>` : ""}
+          </div>
+        </td>
+      </tr>
+    </table>
+    <div style="padding:14px 16px;background:#f8fafd;border-radius:8px;border:1px solid #e5e9f2;margin-bottom:24px;">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#687082;font-weight:600;">Billed To</div>
+      <div style="font-size:15px;font-weight:600;margin-top:3px;">${escHtml(d.customer_name)}</div>
+      <div style="font-size:12px;color:#5a6270;margin-top:2px;">
+        ${d.customer_contact ? `${escHtml(d.customer_contact)}<br/>` : ""}
+        ${(d.customer_address ?? []).map(escHtml).join(", ")}${d.customer_address?.length ? "<br/>" : ""}
+        ${d.customer_vat ? `VAT No. ${escHtml(d.customer_vat)}` : ""}
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead>
+        <tr style="background:#f3f6fb;color:#4a5262;text-transform:uppercase;font-size:11px;letter-spacing:0.05em;">
+          <th style="padding:10px 8px;text-align:left;border-bottom:2px solid #dfe4ee;">Description</th>
+          <th style="padding:10px 8px;text-align:right;border-bottom:2px solid #dfe4ee;">Qty</th>
+          <th style="padding:10px 8px;text-align:right;border-bottom:2px solid #dfe4ee;">Unit Price</th>
+          <th style="padding:10px 8px;text-align:right;border-bottom:2px solid #dfe4ee;">Line Total</th>
+        </tr>
+      </thead>
+      <tbody>${rowsHtml}</tbody>
+    </table>
+    <table style="width:280px;margin-left:auto;margin-top:20px;border-collapse:collapse;font-size:13px;">
+      ${d.tax_cents > 0 ? `
+      <tr><td style="padding:5px 0;color:#5a6270;">Subtotal (excl. VAT)</td><td style="padding:5px 0;text-align:right;font-variant-numeric:tabular-nums;">${escHtml(fmtRands(d.exclusive_cents))}</td></tr>
+      <tr><td style="padding:5px 0;color:#5a6270;">VAT (15%)</td><td style="padding:5px 0;text-align:right;font-variant-numeric:tabular-nums;">${escHtml(fmtRands(d.tax_cents))}</td></tr>
+      ` : ""}
+      <tr style="border-top:2px solid #141821;font-size:16px;font-weight:700;">
+        <td style="padding:10px 0;">Total (${d.tax_cents > 0 ? "incl. VAT" : "ZAR"})</td>
+        <td style="padding:10px 0;text-align:right;font-variant-numeric:tabular-nums;">${escHtml(fmtRands(d.total_cents))}</td>
+      </tr>
+    </table>
+    ${d.kind !== "credit_note" ? `
+    <div style="margin-top:28px;padding:16px;background:#f8fafd;border-radius:8px;border:1px solid #e5e9f2;font-size:12px;line-height:1.6;">
+      <div style="font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#4a5262;margin-bottom:6px;">Banking Details for EFT Payment</div>
+      <div><strong>Bank:</strong> ${escHtml(bankInfo.bank)} &nbsp;·&nbsp; <strong>Branch Code:</strong> ${escHtml(bankInfo.branchCode)}</div>
+      <div><strong>Account Name:</strong> ${escHtml(bankInfo.accountName)}</div>
+      <div><strong>Account Number:</strong> ${escHtml(bankInfo.accountNumber)} (${escHtml(bankInfo.accountType)})</div>
+      <div><strong>Payment Reference:</strong> ${escHtml(d.number)} &nbsp;·&nbsp; <strong>Proof of Payment:</strong> ${escHtml(bankInfo.proofEmail)}</div>
+    </div>` : ""}
+  </div>
+</body>
+</html>`;
+}
+
+function renderStatementHtml(data: any, bankInfo: ReturnType<typeof extractBankBlock>): string {
+  const co = data.company;
+  const cust = data.customer;
+  const rowsHtml = (data.lines ?? []).map((l: any) => `
+    <tr>
+      <td style="padding:8px;border-bottom:1px solid #e5e8ef;">${escHtml(l.date)}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e8ef;font-weight:600;">${escHtml(l.number)}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e8ef;color:#5a6270;">${escHtml(l.description)}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e8ef;text-align:right;font-variant-numeric:tabular-nums;">${l.debitCents > 0 ? escHtml(fmtRands(l.debitCents)) : "—"}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e8ef;text-align:right;color:#157f4b;font-variant-numeric:tabular-nums;">${l.creditCents > 0 ? escHtml(fmtRands(l.creditCents)) : "—"}</td>
+      <td style="padding:8px;border-bottom:1px solid #e5e8ef;text-align:right;font-weight:600;font-variant-numeric:tabular-nums;">${escHtml(fmtRands(l.balanceCents))}</td>
+    </tr>`).join("");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Statement of Account — ${escHtml(cust.name)} (${escHtml(data.toDate)})</title>
+</head>
+<body style="margin:0;padding:24px;background:#f4f6fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#141821;">
+  <div style="max-width:780px;margin:0 auto;background:#ffffff;border-radius:12px;border:1px solid #dfe4ee;padding:36px;">
+    <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">
+      <tr>
+        <td style="vertical-align:top;">
+          <div style="font-size:20px;font-weight:700;">${escHtml(co.displayName)}</div>
+          <div style="font-size:12px;color:#5a6270;line-height:1.5;margin-top:4px;">
+            ${co.registrationNumber ? `Reg. No. ${escHtml(co.registrationNumber)}<br/>` : ""}
+            ${co.vatNumber ? `VAT No. ${escHtml(co.vatNumber)}<br/>` : ""}
+            ${[co.email, co.telephone].filter(Boolean).map(escHtml).join(" · ")}
+          </div>
+        </td>
+        <td style="vertical-align:top;text-align:right;">
+          <div style="font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;">Statement of Account</div>
+          <div style="font-size:12px;color:#5a6270;margin-top:4px;">Period: <strong>${escHtml(data.fromDate)}</strong> to <strong>${escHtml(data.toDate)}</strong></div>
+          <div style="font-size:16px;font-weight:700;margin-top:8px;">Balance Due: ${escHtml(fmtRands(data.closingBalanceCents))}</div>
+        </td>
+      </tr>
+    </table>
+    <div style="padding:14px 16px;background:#f8fafd;border-radius:8px;border:1px solid #e5e9f2;margin-bottom:20px;">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.07em;color:#687082;font-weight:600;">Account Holder</div>
+      <div style="font-size:15px;font-weight:600;margin-top:2px;">${escHtml(cust.name)}</div>
+      ${cust.email ? `<div style="font-size:12px;color:#5a6270;">${escHtml(cust.email)}</div>` : ""}
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+      <thead>
+        <tr style="background:#f3f6fb;color:#4a5262;text-transform:uppercase;font-size:11px;">
+          <th style="padding:9px 8px;text-align:left;border-bottom:2px solid #dfe4ee;">Date</th>
+          <th style="padding:9px 8px;text-align:left;border-bottom:2px solid #dfe4ee;">Document</th>
+          <th style="padding:9px 8px;text-align:left;border-bottom:2px solid #dfe4ee;">Details</th>
+          <th style="padding:9px 8px;text-align:right;border-bottom:2px solid #dfe4ee;">Debit</th>
+          <th style="padding:9px 8px;text-align:right;border-bottom:2px solid #dfe4ee;">Credit</th>
+          <th style="padding:9px 8px;text-align:right;border-bottom:2px solid #dfe4ee;">Balance</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="background:#fafbfd;font-weight:600;">
+          <td style="padding:8px;border-bottom:1px solid #e5e8ef;">${escHtml(data.fromDate)}</td>
+          <td colspan="4" style="padding:8px;border-bottom:1px solid #e5e8ef;">Opening Balance Brought Forward</td>
+          <td style="padding:8px;border-bottom:1px solid #e5e8ef;text-align:right;">${escHtml(fmtRands(data.openingBalanceCents))}</td>
+        </tr>
+        ${rowsHtml}
+        <tr style="background:#f3f6fb;font-weight:700;font-size:14px;">
+          <td style="padding:10px 8px;">${escHtml(data.toDate)}</td>
+          <td colspan="4" style="padding:10px 8px;">Closing Balance Due (ZAR)</td>
+          <td style="padding:10px 8px;text-align:right;">${escHtml(fmtRands(data.closingBalanceCents))}</td>
+        </tr>
+      </tbody>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-top:20px;font-size:12px;text-align:center;border:1px solid #dfe4ee;">
+      <tr style="background:#f3f6fb;font-weight:600;color:#4a5262;">
+        <td style="padding:7px;border-right:1px solid #dfe4ee;">90+ Days</td>
+        <td style="padding:7px;border-right:1px solid #dfe4ee;">60 Days</td>
+        <td style="padding:7px;border-right:1px solid #dfe4ee;">30 Days</td>
+        <td style="padding:7px;border-right:1px solid #dfe4ee;">Current (0–30d)</td>
+        <td style="padding:7px;">Total Due</td>
+      </tr>
+      <tr style="font-weight:700;">
+        <td style="padding:9px;border-right:1px solid #dfe4ee;">${escHtml(fmtRands(data.aging.days90Cents))}</td>
+        <td style="padding:9px;border-right:1px solid #dfe4ee;">${escHtml(fmtRands(data.aging.days60Cents))}</td>
+        <td style="padding:9px;border-right:1px solid #dfe4ee;">${escHtml(fmtRands(data.aging.days30Cents))}</td>
+        <td style="padding:9px;border-right:1px solid #dfe4ee;">${escHtml(fmtRands(data.aging.currentCents))}</td>
+        <td style="padding:9px;">${escHtml(fmtRands(data.aging.totalDueCents))}</td>
+      </tr>
+    </table>
+    <div style="margin-top:24px;padding:16px;background:#f8fafd;border-radius:8px;border:1px solid #e5e9f2;font-size:12px;line-height:1.6;">
+      <div style="font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#4a5262;margin-bottom:6px;">Banking Details for EFT Payment</div>
+      <div><strong>Bank:</strong> ${escHtml(bankInfo.bank)} &nbsp;·&nbsp; <strong>Branch Code:</strong> ${escHtml(bankInfo.branchCode)}</div>
+      <div><strong>Account Name:</strong> ${escHtml(bankInfo.accountName)}</div>
+      <div><strong>Account Number:</strong> ${escHtml(bankInfo.accountNumber)} (${escHtml(bankInfo.accountType)})</div>
+      <div><strong>Payment Reference:</strong> ${escHtml(cust.name)} &nbsp;·&nbsp; <strong>Proof of Payment:</strong> ${escHtml(bankInfo.proofEmail)}</div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 type SendIn = { toEmail?: string; ccEmail?: string | null; subject?: string; message?: string };
 
 async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, reqUrl?: URL) {
-  const d = await env.DB.prepare(`SELECT d.id, d.company_id, d.kind, d.number, d.status, d.date, d.due_date, d.reference, d.exclusive_cents, d.tax_cents, d.total_cents,
-      c.display_name AS company_name, c.email AS company_email, c.default_message AS company_default_message,
-      cust.name AS customer_name, cust.email AS customer_email
+  const d = await env.DB.prepare(`SELECT d.id, d.company_id, d.kind, d.number, d.status, d.date, d.due_date, d.reference, d.exclusive_cents, d.tax_cents, d.total_cents, d.from_number,
+      c.display_name AS company_name, c.registered_name AS company_registered_name, c.registration_number AS company_reg_no, c.vat_number AS company_vat,
+      c.email AS company_email, c.telephone AS company_tel, c.address_json AS company_address_json, c.default_message AS company_default_message,
+      cust.name AS customer_name, cust.contact_name AS customer_contact, cust.email AS customer_email, cust.vat_number AS customer_vat, cust.postal_address_json AS customer_address_json
     FROM documents d
     JOIN companies c ON c.id = d.company_id
     JOIN customers cust ON cust.id = d.customer_id
     WHERE d.id = ?`).bind(docId).first<{
-      id: number; company_id: string; kind: string; number: string; status: string; date: string; due_date: string | null; reference: string | null; exclusive_cents: number; tax_cents: number; total_cents: number;
-      company_name: string; company_email: string | null; company_default_message: string | null; customer_name: string; customer_email: string | null;
+      id: number; company_id: string; kind: string; number: string; status: string; date: string; due_date: string | null; reference: string | null; exclusive_cents: number; tax_cents: number; total_cents: number; from_number: string | null;
+      company_name: string; company_registered_name: string | null; company_reg_no: string | null; company_vat: string | null;
+      company_email: string | null; company_tel: string | null; company_address_json: string | null; company_default_message: string | null;
+      customer_name: string; customer_contact: string | null; customer_email: string | null; customer_vat: string | null; customer_address_json: string | null;
     }>();
   if (!d) throw new HttpError(404, "Document not found");
   if (d.status !== "issued") throw bad("Only issued documents can be emailed");
@@ -312,7 +549,7 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, r
   const cc = s.ccEmail !== undefined ? (str(s.ccEmail, 200) || null) : (d.company_email || "accounts@logia.co.za");
   if (cc && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cc)) throw bad("Enter a valid CC email address");
 
-  const docLines = await env.DB.prepare("SELECT line_no, description, quantity, unit_price_excl_cents, total_cents FROM document_lines WHERE document_id = ? ORDER BY line_no").bind(docId).all<{ line_no: number; description: string; quantity: string; unit_price_excl_cents: number; total_cents: number }>();
+  const docLines = await env.DB.prepare("SELECT line_no, description, comments, quantity, unit_price_excl_cents, discount_percent, total_cents FROM document_lines WHERE document_id = ? ORDER BY line_no").bind(docId).all<{ line_no: number; description: string; comments: string | null; quantity: string; unit_price_excl_cents: number; discount_percent: string; total_cents: number }>();
   const linesSummary = docLines.results.map((l) => `- ${Number(l.quantity) !== 1 ? `${Number(l.quantity)} x ` : ""}${l.description}: R ${(l.total_cents / 100).toFixed(2)}`).join("\n");
 
   const label = d.kind === "invoice" ? "Invoice" : d.kind === "quote" ? "Quotation" : "Credit Note";
@@ -338,8 +575,14 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, r
   ].join("\n");
   const bodyText = s.message ? (str(s.message, 4000) || defaultBody) : defaultBody;
 
+  const htmlDoc = renderDocumentHtml({
+    ...d,
+    company_address: safeJson<string[]>(d.company_address_json, []),
+    customer_address: safeJson<string[]>(d.customer_address_json, []),
+  }, docLines.results, bankInfo, s.message ? str(s.message, 4000) : null);
+
   let providerId: string | null = null;
-  let status = "sent";
+  const status = "sent";
 
   const isTestHarness = reqUrl?.hostname === "test.invalid";
   if (!env.RESEND_API_KEY && !isTestHarness) {
@@ -363,6 +606,13 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, r
           reply_to: d.company_email || "accounts@logia.co.za",
           subject,
           text: bodyText,
+          html: htmlDoc,
+          attachments: [
+            {
+              filename: `${d.number}.html`,
+              content: toBase64Utf8(htmlDoc),
+            },
+          ],
         }),
       });
       if (!res.ok) {
@@ -394,8 +644,123 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, r
   return getDocument(env, docId);
 }
 
+// ───────── recurring template CRUD & batch execution (Piece 3 + Piece 6) ─────────
+type RecurringIn = {
+  companyId: string;
+  customerId: number;
+  frequency: "monthly" | "annually";
+  startDate: string;
+  active?: boolean;
+  reference?: string | null;
+  message?: string | null;
+  vat: boolean;
+  lines: LineIn[];
+};
 
-// ───────── recurring batch execution (Piece 3) ─────────
+async function saveRecurring(env: Env, actor: string, r: RecurringIn, id?: number) {
+  if (!["monthly", "annually"].includes(r.frequency)) throw bad("Frequency must be monthly or annually");
+  if (!Number.isSafeInteger(r.customerId)) throw bad("Choose a customer");
+  if (!isCalendarDate(r.startDate)) throw bad("Start date must be a real calendar date");
+  const { lines, totals } = validateLines(r.lines, r.vat);
+
+  if (id === undefined) {
+    const co = await companyOk(env, r.companyId);
+    if (!co.set_up) throw bad("This company is not set up yet");
+    const cust = await env.DB.prepare("SELECT id FROM customers WHERE id = ? AND company_id = ?").bind(r.customerId, r.companyId).first();
+    if (!cust) throw bad("That customer does not belong to this company");
+    await itemsBelong(env, r.companyId, lines);
+
+    const existingNums = await env.DB.prepare("SELECT sage_number FROM recurring_templates WHERE company_id = ? AND sage_number LIKE 'RINV%'").bind(r.companyId).all<{ sage_number: string }>();
+    let maxNum = 150;
+    for (const row of existingNums.results) {
+      const n = parseInt((row.sage_number || "").replace(/\D/g, ""), 10);
+      if (!Number.isNaN(n) && n > maxNum) maxNum = n;
+    }
+    const nextRinv = `RINV${String(maxNum + 1).padStart(7, "0")}`;
+
+    const ins = await env.DB.prepare(`
+      INSERT INTO recurring_templates (
+        company_id, sage_number, customer_id, frequency, start_date, active, reference, message, exclusive_cents, tax_cents, total_cents
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id
+    `).bind(
+      r.companyId, nextRinv, r.customerId, r.frequency, r.startDate,
+      r.active === false ? 0 : 1, str(r.reference, 120), str(r.message, 4000),
+      totals.exclusiveCents, totals.taxCents, totals.totalCents
+    ).first<{ id: number }>();
+
+    const tplId = ins!.id;
+    await env.DB.batch([
+      ...lines.map((l, i) => {
+        const t = totals.lines[i];
+        return env.DB.prepare(`
+          INSERT INTO recurring_lines (
+            template_id, line_no, item_id, description, comments, unit, quantity,
+            unit_price_excl_cents, discount_percent, tax_rate, exclusive_cents, tax_cents, total_cents
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).bind(tplId, i + 1, l.itemId, l.description, l.comments, l.unit, l.quantity, l.unitPriceExclCents, l.discountPercent, l.taxRate, t.exclusiveCents, t.taxCents, t.totalCents);
+      }),
+      audit(env, actor, "create", "recurring_template", tplId, { number: nextRinv, total: totals.totalCents }),
+    ]);
+
+    return json({ id: tplId, number: nextRinv, ok: true });
+  }
+
+  const cur = await env.DB.prepare("SELECT id, company_id, sage_number FROM recurring_templates WHERE id = ?").bind(id).first<{ id: number; company_id: string; sage_number: string | null }>();
+  if (!cur) throw new HttpError(404, "Recurring template not found");
+  const cust = await env.DB.prepare("SELECT id FROM customers WHERE id = ? AND company_id = ?").bind(r.customerId, cur.company_id).first();
+  if (!cust) throw bad("That customer does not belong to this company");
+  await itemsBelong(env, cur.company_id, lines);
+
+  await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE recurring_templates
+      SET customer_id = ?, frequency = ?, start_date = ?, active = ?, reference = ?, message = ?,
+          exclusive_cents = ?, tax_cents = ?, total_cents = ?, version = version + 1,
+          updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      WHERE id = ?
+    `).bind(
+      r.customerId, r.frequency, r.startDate, r.active === false ? 0 : 1,
+      str(r.reference, 120), str(r.message, 4000),
+      totals.exclusiveCents, totals.taxCents, totals.totalCents, id
+    ),
+    env.DB.prepare("DELETE FROM recurring_lines WHERE template_id = ?").bind(id),
+    ...lines.map((l, i) => {
+      const t = totals.lines[i];
+      return env.DB.prepare(`
+        INSERT INTO recurring_lines (
+          template_id, line_no, item_id, description, comments, unit, quantity,
+          unit_price_excl_cents, discount_percent, tax_rate, exclusive_cents, tax_cents, total_cents
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(id, i + 1, l.itemId, l.description, l.comments, l.unit, l.quantity, l.unitPriceExclCents, l.discountPercent, l.taxRate, t.exclusiveCents, t.taxCents, t.totalCents);
+    }),
+    audit(env, actor, "update", "recurring_template", id, { total: totals.totalCents, active: r.active !== false }),
+  ]);
+
+  return json({ id, number: cur.sage_number, ok: true });
+}
+
+async function toggleRecurring(env: Env, actor: string, id: number, active: boolean) {
+  const cur = await env.DB.prepare("SELECT id FROM recurring_templates WHERE id = ?").bind(id).first();
+  if (!cur) throw new HttpError(404, "Recurring template not found");
+  await env.DB.batch([
+    env.DB.prepare("UPDATE recurring_templates SET active = ?, version = version + 1, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?").bind(active ? 1 : 0, id),
+    audit(env, actor, active ? "resume" : "pause", "recurring_template", id),
+  ]);
+  return json({ id, active, ok: true });
+}
+
+async function deleteRecurring(env: Env, actor: string, id: number) {
+  const cur = await env.DB.prepare("SELECT id, sage_number FROM recurring_templates WHERE id = ?").bind(id).first<{ id: number; sage_number: string | null }>();
+  if (!cur) throw new HttpError(404, "Recurring template not found");
+  await env.DB.batch([
+    env.DB.prepare("UPDATE documents SET recurring_template_id = NULL WHERE recurring_template_id = ?").bind(id),
+    env.DB.prepare("DELETE FROM recurring_lines WHERE template_id = ?").bind(id),
+    env.DB.prepare("DELETE FROM recurring_templates WHERE id = ?").bind(id),
+    audit(env, actor, "delete", "recurring_template", id, { number: cur.sage_number }),
+  ]);
+  return json({ ok: true });
+}
+
 function defaultRecurringDate(): string {
   const sast = todaySAST();
   return `${sast.slice(0, 7)}-25`;
@@ -603,7 +968,7 @@ async function runRecurringBatch(env: Env, actor: string = "system:cron", compan
   };
 }
 
-// ───────── FNB bank statement CSV reconciliation (Piece 4) ─────────
+// ───────── FNB bank statement CSV reconciliation + split deposit matching (Piece 4 + Piece 6) ─────────
 function parseCsvRows(text: string): string[][] {
   const rows: string[][] = [];
   const norm = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -710,7 +1075,7 @@ type MatchSuggestion = {
 async function getOpenInvoices(env: Env, companyId: string) {
   const r = await env.DB.prepare(`
     SELECT d.id, d.number, d.from_number, d.date, d.total_cents, d.reference, d.source, d.sage_status,
-      (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL) AS paid_cents,
+      ${INVOICE_SETTLED_SQL} AS paid_cents,
       c.name AS customer_name
     FROM documents d
     JOIN customers c ON c.id = d.customer_id
@@ -760,7 +1125,7 @@ function suggestMatchForTx(tx: { description: string; amount_cents: number }, op
         confidence: exactAmount ? "high" : "medium",
         reason: exactAmount
           ? `Invoice ${inv.number} reference and exact amount match`
-          : `Invoice ${inv.number} reference match (partial payment: R ${(tx.amount_cents / 100).toFixed(2)} of R ${(inv.openCents / 100).toFixed(2)})`,
+          : `Invoice ${inv.number} reference match (allocates R ${(Math.min(tx.amount_cents, inv.openCents) / 100).toFixed(2)} of R ${(inv.openCents / 100).toFixed(2)})`,
       };
     }
   }
@@ -891,7 +1256,6 @@ async function handleBankImport(env: Env, actor: string, input: BankImportIn) {
     );
   }
 
-  // Execute in chunks of 25 statements per batch to stay well under Cloudflare D1 query limits
   const BATCH_CHUNK = 25;
   for (let i = 0; i < pendingStmts.length; i += BATCH_CHUNK) {
     const chunkStmts = pendingStmts.slice(i, i + BATCH_CHUNK);
@@ -911,7 +1275,9 @@ async function handleBankImport(env: Env, actor: string, input: BankImportIn) {
 }
 
 async function listBankTransactions(env: Env, companyId: string, statusFilter?: string) {
-  let sql = `SELECT t.*, d.number AS matched_document_number
+  let sql = `SELECT t.*, d.number AS matched_document_number,
+      (SELECT COALESCE(SUM(p.amount_cents), 0) FROM payments p WHERE p.company_id = t.company_id AND p.voided_at IS NULL AND p.client_key LIKE ('bank-reconcile-tx-' || t.id || '-doc-%')) AS allocated_cents,
+      (SELECT group_concat(d2.number, ', ') FROM payments p2 JOIN documents d2 ON d2.id = p2.document_id WHERE p2.company_id = t.company_id AND p2.voided_at IS NULL AND p2.client_key LIKE ('bank-reconcile-tx-' || t.id || '-doc-%')) AS matched_numbers
     FROM bank_transactions t
     LEFT JOIN documents d ON d.id = t.matched_document_id
     WHERE t.company_id = ?`;
@@ -926,9 +1292,11 @@ async function listBankTransactions(env: Env, companyId: string, statusFilter?: 
   const openInvoices = await getOpenInvoices(env, companyId);
 
   const results = txs.results.map((tx: any) => {
+    const allocatedCents = tx.allocated_cents ?? 0;
+    const remainingCents = tx.amount_cents > 0 ? Math.max(0, tx.amount_cents - allocatedCents) : 0;
     let suggestion: MatchSuggestion | null = null;
-    if (tx.status === "unmatched" && tx.amount_cents > 0) {
-      suggestion = suggestMatchForTx(tx, openInvoices);
+    if (tx.status === "unmatched" && remainingCents > 0) {
+      suggestion = suggestMatchForTx({ description: tx.description, amount_cents: remainingCents }, openInvoices);
     }
     return {
       id: tx.id,
@@ -937,9 +1305,11 @@ async function listBankTransactions(env: Env, companyId: string, statusFilter?: 
       date: tx.date,
       description: tx.description,
       amountCents: tx.amount_cents,
+      allocatedCents,
+      remainingCents,
       balanceCents: tx.balance_cents,
       matchedDocumentId: tx.matched_document_id,
-      matchedDocumentNumber: tx.matched_document_number ?? null,
+      matchedDocumentNumber: tx.matched_numbers || tx.matched_document_number || null,
       matchedAt: tx.matched_at,
       matchType: tx.match_type,
       status: tx.status,
@@ -962,21 +1332,40 @@ async function listBankTransactions(env: Env, companyId: string, statusFilter?: 
 }
 
 async function handleBankMatch(env: Env, actor: string, input: { transactionId: number; documentId: number; amountCents?: number; note?: string }) {
-  const tx = await env.DB.prepare("SELECT * FROM bank_transactions WHERE id = ?").bind(input.transactionId).first<any>();
+  const tx = await env.DB.prepare(`
+    SELECT t.*,
+      (SELECT COALESCE(SUM(p.amount_cents), 0) FROM payments p WHERE p.company_id = t.company_id AND p.voided_at IS NULL AND p.client_key LIKE ('bank-reconcile-tx-' || t.id || '-doc-%')) AS allocated_cents
+    FROM bank_transactions t WHERE t.id = ?
+  `).bind(input.transactionId).first<any>();
   if (!tx) throw new HttpError(404, "Transaction not found");
-  if (tx.status === "matched") throw bad("Transaction is already matched");
+  if (tx.status === "matched") throw bad("Transaction is already fully matched");
   if (tx.amount_cents <= 0) throw bad("Only credit/deposit transactions can be matched to invoices");
 
-  const doc = await env.DB.prepare("SELECT id, company_id, kind, number, status, total_cents FROM documents WHERE id = ?").bind(input.documentId).first<any>();
+  const alreadyAllocated = tx.allocated_cents ?? 0;
+  const remainingTxCents = Math.max(0, tx.amount_cents - alreadyAllocated);
+  if (remainingTxCents <= 0) throw bad("This deposit has already been fully allocated");
+
+  const doc = await env.DB.prepare(`
+    SELECT d.id, d.company_id, d.kind, d.number, d.status, d.total_cents,
+      ${INVOICE_SETTLED_SQL} AS paid_cents
+    FROM documents d WHERE d.id = ?
+  `).bind(input.documentId).first<any>();
   if (!doc) throw new HttpError(404, "Document not found");
   if (doc.kind !== "invoice" || doc.status !== "issued") throw bad("Only issued invoices can receive payment");
   if (doc.company_id !== tx.company_id) throw bad("Company mismatch between bank transaction and document");
 
-  const paidRow = await env.DB.prepare("SELECT COALESCE(SUM(amount_cents), 0) AS paid FROM payments WHERE document_id = ? AND voided_at IS NULL").bind(doc.id).first<{ paid: number }>();
-  const openCents = Math.max(0, doc.total_cents - (paidRow?.paid ?? 0));
+  const openCents = Math.max(0, doc.total_cents - (doc.paid_cents ?? 0));
   if (openCents <= 0) throw bad("This invoice is already fully paid");
 
-  const matchAmount = input.amountCents && input.amountCents > 0 ? Math.min(input.amountCents, openCents) : Math.min(tx.amount_cents, openCents);
+  const requestedAmount = input.amountCents !== undefined && input.amountCents !== null
+    ? int(input.amountCents, "Match amount")
+    : remainingTxCents;
+  const matchAmount = Math.min(requestedAmount, remainingTxCents, openCents);
+  if (matchAmount <= 0) throw bad("Enter a match amount above R 0.00");
+
+  const newAllocated = alreadyAllocated + matchAmount;
+  const nextStatus = newAllocated >= tx.amount_cents ? "matched" : "unmatched";
+  const nextMatchType = newAllocated >= tx.amount_cents ? "confirmed" : "partial";
   const paymentRef = `FNB: ${tx.description.slice(0, 100)}`;
   const pKey = `bank-reconcile-tx-${tx.id}-doc-${doc.id}-${crypto.randomUUID().slice(0, 8)}`;
 
@@ -985,35 +1374,47 @@ async function handleBankMatch(env: Env, actor: string, input: { transactionId: 
       INSERT INTO payments (company_id, document_id, date, amount_cents, method, reference, note, client_key, created_by)
       SELECT ?, ?, ?, ?, 'fnb_eft', ?, ?, ?, ?
       WHERE (SELECT status FROM bank_transactions WHERE id = ?) <> 'matched'
-        AND ? <= (SELECT total_cents FROM documents WHERE id = ?) - (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = ? AND voided_at IS NULL)
+        AND ? <= (SELECT d.total_cents - ${INVOICE_SETTLED_SQL} FROM documents d WHERE d.id = ?)
     `).bind(
       doc.company_id, doc.id, tx.date, matchAmount, paymentRef,
       input.note ?? `Reconciled from FNB statement transaction #${tx.id}`,
-      pKey, actor, tx.id, matchAmount, doc.id, doc.id
+      pKey, actor, tx.id, matchAmount, doc.id
     ),
     env.DB.prepare(`
       UPDATE bank_transactions
-      SET status = 'matched', matched_document_id = ?, matched_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), match_type = 'confirmed'
+      SET status = ?, matched_document_id = ?, matched_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), match_type = ?
       WHERE id = ? AND EXISTS (SELECT 1 FROM payments WHERE client_key = ? AND voided_at IS NULL)
-    `).bind(doc.id, tx.id, pKey),
+    `).bind(nextStatus, doc.id, nextMatchType, tx.id, pKey),
     env.DB.prepare(`
       INSERT INTO audit_events (actor, action, entity, entity_id, detail_json)
       SELECT ?, 'bank_match', 'bank_transaction', ?, ?
       WHERE EXISTS (SELECT 1 FROM payments WHERE client_key = ? AND voided_at IS NULL)
-    `).bind(actor, tx.id, JSON.stringify({ documentId: doc.id, amountCents: matchAmount }), pKey),
+    `).bind(actor, tx.id, JSON.stringify({ documentId: doc.id, amountCents: matchAmount, status: nextStatus, allocatedCents: newAllocated }), pKey),
   ]);
 
   if (res[0].meta.changes !== 1) {
     throw new HttpError(409, "Could not match transaction: invoice balance or transaction status changed.");
   }
 
-  return json({ ok: true, transactionId: tx.id, documentId: doc.id, amountMatchedCents: matchAmount });
+  return json({
+    ok: true,
+    transactionId: tx.id,
+    documentId: doc.id,
+    amountMatchedCents: matchAmount,
+    allocatedCents: newAllocated,
+    remainingCents: Math.max(0, tx.amount_cents - newAllocated),
+    status: nextStatus,
+  });
 }
 
 async function handleBankIgnore(env: Env, actor: string, input: { transactionId: number }) {
-  const tx = await env.DB.prepare("SELECT * FROM bank_transactions WHERE id = ?").bind(input.transactionId).first<any>();
+  const tx = await env.DB.prepare(`
+    SELECT t.*,
+      (SELECT COALESCE(SUM(p.amount_cents), 0) FROM payments p WHERE p.company_id = t.company_id AND p.voided_at IS NULL AND p.client_key LIKE ('bank-reconcile-tx-' || t.id || '-doc-%')) AS allocated_cents
+    FROM bank_transactions t WHERE t.id = ?
+  `).bind(input.transactionId).first<any>();
   if (!tx) throw new HttpError(404, "Transaction not found");
-  if (tx.status === "matched") throw bad("Cannot ignore a matched transaction. Unmatch it first.");
+  if (tx.status === "matched" || (tx.allocated_cents ?? 0) > 0) throw bad("Cannot ignore a transaction that has matched payments. Undo its matches first.");
 
   await env.DB.batch([
     env.DB.prepare("UPDATE bank_transactions SET status = 'ignored' WHERE id = ?").bind(tx.id),
@@ -1023,10 +1424,13 @@ async function handleBankIgnore(env: Env, actor: string, input: { transactionId:
 }
 
 async function handleBankUnmatch(env: Env, actor: string, input: { transactionId: number }) {
-  const tx = await env.DB.prepare("SELECT * FROM bank_transactions WHERE id = ?").bind(input.transactionId).first<any>();
+  const tx = await env.DB.prepare(`
+    SELECT t.*,
+      (SELECT COALESCE(SUM(p.amount_cents), 0) FROM payments p WHERE p.company_id = t.company_id AND p.voided_at IS NULL AND p.client_key LIKE ('bank-reconcile-tx-' || t.id || '-doc-%')) AS allocated_cents
+    FROM bank_transactions t WHERE t.id = ?
+  `).bind(input.transactionId).first<any>();
   if (!tx) throw new HttpError(404, "Transaction not found");
 
-  // Support restoring an ignored transaction back to unmatched (NF07)
   if (tx.status === "ignored") {
     await env.DB.batch([
       env.DB.prepare("UPDATE bank_transactions SET status = 'unmatched' WHERE id = ?").bind(tx.id),
@@ -1035,30 +1439,28 @@ async function handleBankUnmatch(env: Env, actor: string, input: { transactionId
     return json({ ok: true, transactionId: tx.id, status: "unmatched" });
   }
 
-  if (tx.status !== "matched" || !tx.matched_document_id) throw bad("Transaction is not currently matched");
+  if (tx.status !== "matched" && (tx.allocated_cents ?? 0) <= 0) throw bad("Transaction is not currently matched");
 
-  const docId = tx.matched_document_id;
-  const pKeyPrefix = `bank-reconcile-tx-${tx.id}-doc-${docId}%`;
+  const pKeyPrefix = `bank-reconcile-tx-${tx.id}-doc-%`;
 
   await env.DB.batch([
     env.DB.prepare(`
       UPDATE payments
       SET voided_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), voided_by = ?
-      WHERE document_id = ? AND client_key LIKE ? AND voided_at IS NULL
-    `).bind(actor, docId, pKeyPrefix),
+      WHERE company_id = ? AND client_key LIKE ? AND voided_at IS NULL
+    `).bind(actor, tx.company_id, pKeyPrefix),
     env.DB.prepare(`
       UPDATE bank_transactions
       SET status = 'unmatched', matched_document_id = NULL, matched_at = NULL, match_type = NULL
       WHERE id = ?
     `).bind(tx.id),
-    audit(env, actor, "bank_unmatch", "bank_transaction", tx.id, { documentId: docId }),
+    audit(env, actor, "bank_unmatch", "bank_transaction", tx.id, { documentId: tx.matched_document_id, voidedCents: tx.allocated_cents }),
   ]);
 
   return json({ ok: true, transactionId: tx.id, status: "unmatched" });
 }
 
-
-// ───────── Customer Account Statement & Ledger (Piece 5) ─────────
+// ───────── Customer Account Statement & Ledger (Piece 5 + Piece 6 Sage settlement support) ─────────
 type StatementLine = {
   date: string;
   kind: "invoice" | "payment" | "credit_note";
@@ -1102,15 +1504,20 @@ async function getCustomerStatement(env: Env, customerId: number, url: URL) {
     FROM documents d
     WHERE d.customer_id = ? AND d.kind = 'invoice' AND d.status = 'issued' AND d.source = 'sage'
       AND (d.sage_status IS NULL OR d.sage_status <> 'Paid')
-      AND (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL) < d.total_cents
+      AND ${INVOICE_SETTLED_SQL} < d.total_cents
   `).bind(customerId).first<{ n: number }>();
   const uncheckedSageCount = uncheckedSageRow?.n ?? 0;
 
-  // 1. Calculate opening balance as of fromDate
+  // 1. Calculate opening balance as of fromDate.
+  // Historical Sage invoices marked sage_status = 'Paid' were already settled in Sage (which had no separate payments export).
   const openDebits = await env.DB.prepare(`
-    SELECT COALESCE(SUM(total_cents), 0) AS total
-    FROM documents
-    WHERE customer_id = ? AND kind = 'invoice' AND status = 'issued' AND date < ?${sourceFilter}
+    SELECT COALESCE(SUM(
+      CASE WHEN d.source = 'sage' AND d.sage_status = 'Paid'
+           THEN (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL AND date < ?2)
+           ELSE d.total_cents END
+    ), 0) AS total
+    FROM documents d
+    WHERE d.customer_id = ?1 AND d.kind = 'invoice' AND d.status = 'issued' AND d.date < ?2${docJoinFilter}
   `).bind(customerId, fromDate).first<{ total: number }>();
 
   const openCredits = await env.DB.prepare(`
@@ -1130,10 +1537,11 @@ async function getCustomerStatement(env: Env, customerId: number, url: URL) {
 
   // 2. Fetch period documents (invoices, credit notes)
   const docs = await env.DB.prepare(`
-    SELECT id, kind, number, date, due_date, reference, total_cents, source,
-      (SELECT description FROM document_lines WHERE document_id = documents.id AND line_no = 1) AS first_line
-    FROM documents
-    WHERE customer_id = ? AND kind IN ('invoice', 'credit_note') AND status = 'issued' AND date >= ? AND date <= ?${sourceFilter}
+    SELECT d.id, d.kind, d.number, d.date, d.due_date, d.reference, d.total_cents, d.source, d.sage_status,
+      (SELECT description FROM document_lines WHERE document_id = d.id AND line_no = 1) AS first_line,
+      (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL AND date <= ?3) AS paid_cents
+    FROM documents d
+    WHERE d.customer_id = ?1 AND d.kind IN ('invoice', 'credit_note') AND d.status = 'issued' AND d.date >= ?2 AND d.date <= ?3${docJoinFilter}
   `).bind(customerId, fromDate, toDate).all<any>();
 
   // 3. Fetch period payments
@@ -1175,6 +1583,22 @@ async function getCustomerStatement(env: Env, customerId: number, url: URL) {
         documentId: d.id,
         source: d.source,
       });
+      // If a historical Sage invoice in this window was marked Paid in Sage and has no Plutus payment, include its Sage settlement
+      const sageSettledCents = Math.max(0, d.total_cents - (d.paid_cents ?? 0));
+      if (d.source === "sage" && d.sage_status === "Paid" && sageSettledCents > 0) {
+        rawList.push({
+          id: d.id + 0.5,
+          date: d.date,
+          kind: "payment",
+          number: `Settled (${d.number})`,
+          reference: d.number,
+          description: "Historical payment recorded in Sage",
+          debitCents: 0,
+          creditCents: sageSettledCents,
+          documentId: d.id,
+          source: "sage",
+        });
+      }
     } else if (d.kind === "credit_note") {
       rawList.push({
         id: d.id,
@@ -1228,12 +1652,13 @@ async function getCustomerStatement(env: Env, customerId: number, url: URL) {
 
   const closingBalanceCents = currentBalance;
 
-  // 5. Calculate Aging Analysis (0-30, 31-60, 61-90, 91+ days) and apply credit notes (oldest first)
+  // 5. Calculate Aging Analysis (0-30, 31-60, 61-90, 91+ days) excluding settled Sage invoices
   const openInvoices = await env.DB.prepare(`
-    SELECT d.id, d.number, d.date, d.total_cents,
+    SELECT d.id, d.number, d.date, d.total_cents, d.source, d.sage_status,
       (SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE document_id = d.id AND voided_at IS NULL AND date <= ?) AS paid_cents
     FROM documents d
-    WHERE d.customer_id = ? AND d.kind = 'invoice' AND d.status = 'issued' AND d.date <= ?${docJoinFilter}
+    WHERE d.customer_id = ? AND d.kind = 'invoice' AND d.status = 'issued' AND d.date <= ?
+      AND NOT (d.source = 'sage' AND d.sage_status = 'Paid')${docJoinFilter}
     ORDER BY d.date ASC
   `).bind(toDate, customerId, toDate).all<any>();
 
@@ -1261,7 +1686,6 @@ async function getCustomerStatement(env: Env, customerId: number, url: URL) {
     else days90 += open;
   }
 
-  // Apply credit notes against oldest aging buckets first so aging buckets sum to Total Due (NF04)
   let creditToApply = totalCreditsRow?.total ?? 0;
   for (const bucket of ["days90", "days60", "days30", "currentAging"] as const) {
     if (creditToApply <= 0) break;
@@ -1365,6 +1789,9 @@ ${co.email || "accounts@logia.co.za"}
 ${co.telephone || ""}
 `;
 
+  const htmlStmt = renderStatementHtml(data, bankInfo);
+  const safeCustSlug = String(data.customer.name || "Customer").replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 40);
+
   let providerId: string | null = null;
   let status = "sent";
 
@@ -1389,6 +1816,13 @@ ${co.telephone || ""}
           reply_to: co.email || "accounts@logia.co.za",
           subject,
           text: bodyText,
+          html: htmlStmt,
+          attachments: [
+            {
+              filename: `Statement_${safeCustSlug}_${data.toDate}.html`,
+              content: toBase64Utf8(htmlStmt),
+            },
+          ],
         }),
       });
       if (!res.ok) {
@@ -1409,6 +1843,129 @@ ${co.telephone || ""}
   }).run();
 
   return json({ ok: true, recipient: to, cc, subject, status, providerId });
+}
+
+// ───────── Editable Company Settings, Test Email & Pre-Cutover Sage Settlement (Piece 6) ─────────
+type CompanyIn = {
+  displayName: string;
+  registeredName?: string | null;
+  registrationNumber?: string | null;
+  vatNumber?: string | null;
+  email?: string | null;
+  telephone?: string | null;
+  address?: string[] | null;
+  defaultMessage?: string | null;
+  setUp?: boolean;
+};
+
+async function updateCompany(env: Env, actor: string, companyId: string, input: CompanyIn) {
+  await companyOk(env, companyId);
+  const displayName = str(input.displayName, 200);
+  if (!displayName) throw bad("Company display name is required");
+  const email = str(input.email, 200);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw bad("Enter a valid company email address");
+  const addr = Array.isArray(input.address) ? input.address.map((a) => str(a, 140)).filter(Boolean) : [];
+
+  await env.DB.batch([
+    env.DB.prepare(`
+      UPDATE companies
+      SET display_name = ?, registered_name = ?, registration_number = ?, vat_number = ?,
+          email = ?, telephone = ?, address_json = ?, default_message = ?,
+          set_up = CASE WHEN ? IS NOT NULL THEN ? ELSE set_up END
+      WHERE id = ?
+    `).bind(
+      displayName,
+      str(input.registeredName, 200),
+      str(input.registrationNumber, 80),
+      str(input.vatNumber, 80),
+      email,
+      str(input.telephone, 60),
+      addr.length ? JSON.stringify(addr) : null,
+      str(input.defaultMessage, 4000),
+      input.setUp !== undefined ? (input.setUp ? 1 : 0) : null,
+      input.setUp !== undefined ? (input.setUp ? 1 : 0) : null,
+      companyId
+    ),
+    audit(env, actor, "update_company", "company", null, { companyId, displayName }),
+  ]);
+
+  return json(await env.DB.prepare("SELECT * FROM companies WHERE id = ?").bind(companyId).first());
+}
+
+async function settleHistoricalSageInvoices(env: Env, actor: string, companyId: string, input: { beforeDate: string; action?: "settle" | "unsettle"; customerId?: number }) {
+  await companyOk(env, companyId);
+  if (!isCalendarDate(input.beforeDate)) throw bad("Choose a valid cutover date (YYYY-MM-DD)");
+  const action = input.action === "unsettle" ? "unsettle" : "settle";
+  const hasCust = input.customerId !== undefined && Number.isSafeInteger(input.customerId);
+
+  if (action === "settle") {
+    const sql = `
+      UPDATE documents
+      SET sage_status = 'Paid', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      WHERE company_id = ? AND kind = 'invoice' AND status = 'issued' AND source = 'sage'
+        AND date <= ? AND (sage_status IS NULL OR sage_status <> 'Paid')
+        ${hasCust ? "AND customer_id = ?" : ""}
+    `;
+    const binds = hasCust ? [companyId, input.beforeDate, input.customerId!] : [companyId, input.beforeDate];
+    const r = await env.DB.prepare(sql).bind(...binds).run();
+    const updatedCount = r.meta?.changes ?? 0;
+    await audit(env, actor, "sage_cutover_settle", "company", input.customerId ?? null, { companyId, beforeDate: input.beforeDate, updatedCount }).run();
+    return json({ ok: true, action, beforeDate: input.beforeDate, updatedCount });
+  } else {
+    const sql = `
+      UPDATE documents
+      SET sage_status = NULL, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+      WHERE company_id = ? AND kind = 'invoice' AND status = 'issued' AND source = 'sage'
+        AND date <= ? AND sage_status = 'Paid' AND sage_amount_due_cents IS NULL
+        ${hasCust ? "AND customer_id = ?" : ""}
+    `;
+    const binds = hasCust ? [companyId, input.beforeDate, input.customerId!] : [companyId, input.beforeDate];
+    const r = await env.DB.prepare(sql).bind(...binds).run();
+    const updatedCount = r.meta?.changes ?? 0;
+    await audit(env, actor, "sage_cutover_unsettle", "company", input.customerId ?? null, { companyId, beforeDate: input.beforeDate, updatedCount }).run();
+    return json({ ok: true, action, beforeDate: input.beforeDate, updatedCount });
+  }
+}
+
+async function sendTestEmail(env: Env, actor: string, input: { companyId?: string; toEmail?: string }, reqUrl?: URL) {
+  const companyId = input.companyId || "logia-services";
+  const co = await env.DB.prepare("SELECT * FROM companies WHERE id = ?").bind(companyId).first<any>();
+  const companyName = co?.display_name || "Plutus Accounting";
+  const to = str(input.toEmail || actor, 200);
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw bad("Enter a valid email address for the test email");
+
+  const isTestHarness = reqUrl?.hostname === "test.invalid";
+  if (!env.RESEND_API_KEY && !isTestHarness) {
+    throw new HttpError(503, "RESEND_API_KEY is not configured on this Cloudflare Worker yet. Run `wrangler secret put RESEND_API_KEY` to enable live outbound email.");
+  }
+
+  let providerId: string | null = "test-simulated";
+  if (env.RESEND_API_KEY) {
+    const fromAddr = env.EMAIL_FROM || "accounts@logia.co.za";
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `${companyName} <${fromAddr}>`,
+        to: [to],
+        reply_to: co?.email || "accounts@logia.co.za",
+        subject: `Plutus Outbound Email Verification — ${companyName}`,
+        text: `This is a live test email from Plutus (${companyName}) triggered by ${actor} on ${todaySAST()}.\n\nYour Resend integration and sender domain are working properly.`,
+      }),
+    });
+    if (!res.ok) {
+      const errJson = (await res.json().catch(() => ({}))) as { message?: string };
+      throw new HttpError(502, `Resend test failed: ${errJson.message || res.statusText}`);
+    }
+    const resData = await res.json() as { id?: string };
+    providerId = resData?.id ?? null;
+  }
+
+  await audit(env, actor, "test_email_sent", "company", null, { companyId, to, providerId }).run();
+  return json({ ok: true, recipient: to, providerId });
 }
 
 async function deleteDraft(env: Env, actor: string, id: number) {
@@ -1552,11 +2109,18 @@ export default {
       await ensureSchema(env);
       if (p[0] === "backup" && req.method === "GET") return await handleBackup(env, url, p[1] ?? "");
       const id = p[1] && /^\d{1,15}$/.test(p[1]) ? Number(p[1]) : undefined;
-      if (p[1] && id === undefined && p[0] !== "import" && p[0] !== "recurring" && p[0] !== "bank") throw new HttpError(404, "Not found");
+      if (p[1] && id === undefined && !["import", "recurring", "bank", "companies", "settings"].includes(p[0])) throw new HttpError(404, "Not found");
       const m = req.method;
       if (p[0] === "me" && m === "GET") return await json({ email: actor });
       if (p[0] === "bootstrap" && m === "GET") return await bootstrap(env, url);
       if (p[0] === "stats" && m === "GET") return await stats(env);
+      if (p[0] === "companies" && p[1]) {
+        if (!p[2] && m === "PUT") return await updateCompany(env, actor, p[1], await body<CompanyIn>(req));
+        if (p[2] === "settle-sage" && m === "POST") return await settleHistoricalSageInvoices(env, actor, p[1], await body<{ beforeDate: string; action?: "settle" | "unsettle"; customerId?: number }>(req));
+      }
+      if (p[0] === "settings" && p[1] === "test-email" && m === "POST") {
+        return await sendTestEmail(env, actor, await body<{ companyId?: string; toEmail?: string }>(req), url);
+      }
       if (p[0] === "documents") {
         if (m === "POST" && id === undefined) return await createDocument(env, actor, await body<DocIn>(req));
         if (id !== undefined && p[2] === "payments" && !p[3] && m === "POST") return await addPayment(env, actor, id, await body<PaymentIn>(req));
@@ -1577,13 +2141,19 @@ export default {
         if (m === "POST" && id === undefined) return await saveItem(env, actor, await body<ItemIn>(req));
         if (m === "PUT" && id !== undefined) return await saveItem(env, actor, await body<ItemIn>(req), id);
       }
-      if (p[0] === "recurring" && p[1] === "preview" && m === "GET") {
-        const co = url.searchParams.get("company") ?? "logia-services";
-        return json(await previewRecurringRun(env, co, url.searchParams.get("date") ?? undefined));
-      }
-      if (p[0] === "recurring" && p[1] === "run" && m === "POST") {
-        const b = await body<{ companyId?: string; date?: string }>(req);
-        return json(await runRecurringBatch(env, actor, b?.companyId ?? "logia-services", b?.date));
+      if (p[0] === "recurring") {
+        if (p[1] === "preview" && m === "GET") {
+          const co = url.searchParams.get("company") ?? "logia-services";
+          return json(await previewRecurringRun(env, co, url.searchParams.get("date") ?? undefined));
+        }
+        if (p[1] === "run" && m === "POST") {
+          const b = await body<{ companyId?: string; date?: string }>(req);
+          return json(await runRecurringBatch(env, actor, b?.companyId ?? "logia-services", b?.date));
+        }
+        if (!p[1] && m === "POST") return await saveRecurring(env, actor, await body<RecurringIn>(req));
+        if (id !== undefined && !p[2] && m === "PUT") return await saveRecurring(env, actor, await body<RecurringIn>(req), id);
+        if (id !== undefined && p[2] === "toggle" && m === "POST") return await toggleRecurring(env, actor, id, !!(await body<{ active: boolean }>(req)).active);
+        if (id !== undefined && !p[2] && m === "DELETE") return await deleteRecurring(env, actor, id);
       }
       if (p[0] === "bank") {
         if (p[1] === "import" && m === "POST") return await handleBankImport(env, actor, await body<BankImportIn>(req));
@@ -1598,9 +2168,9 @@ export default {
       if (e instanceof AuthError) return json({ error: e.message }, e.status);
       if (e instanceof HttpError) return json({ error: e.message }, e.status);
       const msg = e instanceof Error ? e.message : String(e);
-      if (/UNIQUE constraint failed/.test(msg)) return json({ error: "That number is already used." }, 409);
-      console.error(msg);
-      return json({ error: "Something went wrong on the server. Nothing was saved." }, 500);
+      if (msg.includes("UNIQUE")) return json({ error: "That record already exists." }, 409);
+      console.error("Unhandled worker error:", e);
+      return json({ error: "Something went wrong on the server. Nothing was changed — please try again." }, 500);
     }
   },
-} satisfies ExportedHandler<Env>;
+};

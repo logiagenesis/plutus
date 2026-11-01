@@ -104,7 +104,8 @@ function CompanySwitch() {
 
 function Shell({ children, active }: { children: ReactNode; active: string }) {
   const app = useApp();
-  const cur = (p: string) => (p === "/" ? active === "" : active === p.slice(1)) ? "page" : undefined;
+  const normalizedActive = active === "credit-notes" ? "invoices" : active;
+  const cur = (p: string) => (p === "/" ? normalizedActive === "" : normalizedActive === p.slice(1)) ? "page" : undefined;
   return (
     <div className="shell">
       <aside className="rail" aria-label="Main">
@@ -127,7 +128,7 @@ function Shell({ children, active }: { children: ReactNode; active: string }) {
       <main className="main" id="main">{children}</main>
       <nav className="tabbar" aria-label="Main">
         {[NAV[0], NAV[1], NAV[2], NAV[3], { path: "/more", label: "More", icon: I.more }].map((n) => (
-          <a key={n.path} href={"#" + n.path} aria-current={n.path === "/more" ? (["recurring", "items", "banking", "settings", "more"].includes(active) ? "page" : undefined) : cur(n.path)}>
+          <a key={n.path} href={"#" + n.path} aria-current={n.path === "/more" ? (["recurring", "items", "banking", "settings", "more"].includes(normalizedActive) ? "page" : undefined) : cur(n.path)}>
             <n.icon />{n.label}
           </a>
         ))}
@@ -175,7 +176,6 @@ export default function App() {
   const checkAuth = useCallback(async () => {
     try {
       setAuthErr(null);
-      // A brand-new, empty Plutus (restore switched on) shows the restore screen instead of sign-in.
       const r = await api<{ enabled: boolean; blank: boolean }>("restore/state").catch(() => ({ enabled: false, blank: false }));
       setRestoring(r.enabled && r.blank);
       if (r.enabled && r.blank) return;
@@ -208,6 +208,7 @@ export default function App() {
 
   const [a, b, c] = route;
   const co = data.companies.find((x) => x.id === companyId);
+  const docKind = a === "invoices" ? "invoice" : a === "quotes" ? "quote" : a === "credit-notes" ? "credit_note" : null;
   let page: ReactNode;
   if (state === "loading") page = <Loading />;
   else if (state !== "ready") page = (
@@ -219,11 +220,10 @@ export default function App() {
   );
   else if (co && !co.setUp && !["settings", "more"].includes(a ?? "")) page = <NotSetUp />;
   else if (!a) page = <Home />;
-  else if ((a === "invoices" || a === "quotes") && b === "new") page = <Editor kind={a === "invoices" ? "invoice" : "quote"} key={"new" + a} />;
-  else if ((a === "invoices" || a === "quotes") && b && c === "edit") page = <Editor kind={a === "invoices" ? "invoice" : "quote"} editId={Number(b)} key={"edit" + b} />;
-  else if ((a === "invoices" || a === "quotes") && b) page = <DocView kind={a === "invoices" ? "invoice" : "quote"} id={b} key={a + b} />;
-  else if (a === "invoices") page = <DocList kind="invoice" key="li" />;
-  else if (a === "quotes") page = <DocList kind="quote" key="lq" />;
+  else if (docKind && b === "new") page = <Editor kind={docKind} key={"new" + a} />;
+  else if (docKind && b && c === "edit") page = <Editor kind={docKind} editId={Number(b)} key={"edit" + b} />;
+  else if (docKind && b) page = <DocView kind={docKind} id={b} key={a + b} />;
+  else if (docKind) page = <DocList kind={docKind} key={"l" + a} />;
   else if (a === "customers" && b === "new") page = <CustomerForm key="cn" />;
   else if (a === "customers" && b && c === "edit") page = <CustomerForm id={Number(b)} key={"ce" + b} />;
   else if (a === "customers" && b && c === "statement") page = <CustomerStatement id={Number(b)} key={"cs" + b} />;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { data, invoices, quotes, customersById, fmtDate, invoiceStatus, nextRun } from "../data";
+import { data, invoices, quotes, creditNotes, customersById, fmtDate, invoiceStatus, creditNoteStatus, nextRun } from "../data";
 import { rand } from "../money";
 import { I, Pill, Empty } from "../ui";
 import { go, useApp } from "../App";
@@ -72,6 +72,7 @@ export function CustomerView({ id }: { id: number }) {
   if (!c) return <div className="page"><a className="crumb" href="#/customers"><I.back />Customers</a><Empty title="Customer not found" /></div>;
   const inv = invoices.filter((d) => d.customerSageId === id);
   const quo = quotes.filter((d) => d.customerSageId === id);
+  const crn = creditNotes.filter((d) => d.customerSageId === id);
   const rec = data.recurring.filter((r) => r.customerSageId === id);
   const total = inv.reduce((a, d) => a + d.totalCents, 0);
   const lastIssued = inv.find((d) => d.status === "issued");
@@ -83,6 +84,7 @@ export function CustomerView({ id }: { id: number }) {
         <div className="toolbar">
           <a className="btn" href={`#/customers/${c.sageId}/statement`}><I.print />Statement</a>
           <a className="btn" href={`#/quotes/new?customer=${c.sageId}`}>New quote</a>
+          <a className="btn" href={`#/credit-notes/new?customer=${c.sageId}`}>New credit note</a>
           <a className="btn" href={`#/customers/${c.sageId}/edit`}>Edit</a>
           {lastIssued && <a className="btn" href={`#/invoices/new?from=${lastIssued.sageId}`} title={`Copy lines from ${lastIssued.number}`}><I.copy />Copy last</a>}
           <a className="btn primary" href={`#/invoices/new?customer=${c.sageId}`}><I.plus />New invoice</a>
@@ -92,11 +94,11 @@ export function CustomerView({ id }: { id: number }) {
         <div className="stack">
           {rec.length > 0 && (
             <section className="glass panel">
-              <div className="panel-head"><h2>Recurring invoices</h2></div>
+              <div className="panel-head"><h2>Recurring invoices</h2><a className="btn small ghost" href="#/recurring">Manage</a></div>
               <div className="table-wrap"><table className="grid"><tbody>
                 {rec.map((r) => (
-                  <tr key={r.number}>
-                    <td><div className="strong">{r.lines.map((l) => l.description).join(", ")}</div><div className="cell-sub">{r.frequency === "annually" ? "Every year" : "Every month"} on the {Number(r.startDate.slice(8))}th · next {fmtDate(nextRun(r))}</div></td>
+                  <tr key={r.sageId} className="row" onClick={() => go("/recurring")}>
+                    <td><div className="strong">{r.lines.map((l) => l.description).join(", ")}</div><div className="cell-sub">{r.frequency === "annually" ? "Every year" : "Every month"} on the {Number(r.startDate.slice(8))}th · {r.active ? `next ${fmtDate(nextRun(r))}` : "Paused"}</div></td>
                     <td className="r num strong">{rand(r.totalCents)}</td>
                   </tr>
                 ))}
@@ -118,6 +120,20 @@ export function CustomerView({ id }: { id: number }) {
             )}
             {inv.length > 30 && <div className="pager"><span>Showing the latest 30 of {inv.length}</span><a className="btn small" href="#/invoices">Search all invoices</a></div>}
           </section>
+          {crn.length > 0 && (
+            <section className="glass panel">
+              <div className="panel-head"><h2>Credit Notes</h2><span className="muted">{crn.length}</span></div>
+              <div className="table-wrap"><table className="grid">
+                <thead><tr><th>Number</th><th className="hide-xs">Date</th><th className="r">Credit</th><th className="hide-sm">Status</th></tr></thead>
+                <tbody>{crn.slice(0, 15).map((d) => { const st = creditNoteStatus(d); return (
+                  <tr key={d.sageId} className="row" tabIndex={0} onClick={() => go(`/credit-notes/${d.sageId}`)} onKeyDown={(e) => e.key === "Enter" && go(`/credit-notes/${d.sageId}`)}>
+                    <td><div className="strong">{d.status === "draft" ? "Draft" : d.number}</div><div className="cell-sub">{d.firstLine}</div></td>
+                    <td className="hide-xs muted">{fmtDate(d.date)}</td><td className="r num strong">{rand(d.totalCents)}</td>
+                    <td className="hide-sm"><Pill tone={st.tone}>{st.label}</Pill></td>
+                  </tr>); })}</tbody>
+              </table></div>
+            </section>
+          )}
           {quo.length > 0 && <p className="muted" style={{ margin: 0 }}>{quo.length} quotes for this customer are on the <a href="#/quotes" style={{ color: "var(--accent)" }}>Quotes</a> page.</p>}
         </div>
         <section className="glass">

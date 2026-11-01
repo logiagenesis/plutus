@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "rea
 import { useApp } from "../App";
 import { api, type BankStats, type BankTransaction } from "../data";
 import { rand } from "../money";
+import { parsePrice } from "./Editor";
 import { I, Pill } from "../ui";
 
 export default function Banking() {
@@ -21,8 +22,9 @@ export default function Banking() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ importedCount: number; skippedCount: number; totalRows: number } | null>(null);
 
-  // Manual invoice selector map: txId -> docId
+  // Manual invoice selector & optional custom split amount map
   const [manualInvoiceMap, setManualInvoiceMap] = useState<Record<number, number>>({});
+  const [manualAmountMap, setManualAmountMap] = useState<Record<number, string>>({});
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
@@ -94,16 +96,33 @@ export default function Banking() {
       notify("Select an open invoice to match with this transaction.");
       return;
     }
+    const rawAmt = (manualAmountMap[tx.id] ?? "").trim();
+    const customCents = rawAmt ? parsePrice(rawAmt) : undefined;
+    if (rawAmt && (customCents === null || customCents === undefined || customCents <= 0)) {
+      notify("Enter a valid allocation amount in Rands (e.g. 500.00).");
+      return;
+    }
     try {
       setBusyId(tx.id);
-      await api("bank/match", {
+      const res = await api<{ amountMatchedCents: number; remainingCents: number; status: string }>("bank/match", {
         method: "POST",
         body: {
           transactionId: tx.id,
           documentId: docId,
+          ...(customCents ? { amountCents: customCents } : {}),
         },
       });
-      notify("Transaction reconciled and payment recorded.");
+      setManualAmountMap((m) => ({ ...m, [tx.id]: "" }));
+      setManualInvoiceMap((m) => {
+        const copy = { ...m };
+        delete copy[tx.id];
+        return copy;
+      });
+      if (res.remainingCents > 0) {
+        notify(`Allocated ${rand(res.amountMatchedCents)} · ${rand(res.remainingCents)} remaining on deposit for next invoice.`);
+      } else {
+        notify(`Reconciled ${rand(res.amountMatchedCents)} and marked deposit complete.`);
+      }
       await Promise.all([loadData(), reload()]);
     } catch (e) {
       notify(e instanceof Error ? e.message : "Matching failed");
@@ -135,7 +154,7 @@ export default function Banking() {
         method: "POST",
         body: { transactionId: txId },
       });
-      notify(wasIgnored ? "Transaction restored to unmatched." : "Transaction unreconciled and payment reversed.");
+      notify(wasIgnored ? "Transaction restored to unmatched." : "Transaction unreconciled and linked payment(s) reversed.");
       await Promise.all([loadData(), reload()]);
     } catch (e) {
       notify(e instanceof Error ? e.message : "Failed to update transaction");
@@ -169,7 +188,7 @@ export default function Banking() {
       <div className="page-head">
         <div>
           <h1>Bank Reconciliation</h1>
-          <p className="sub">Match FNB bank statement deposits to issued invoices and verify customer settlements.</p>
+          <p className="sub">Match FNB bank statement deposits (including split multi-invoice deposits) to open invoices.</p>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <button className="btn primary" onClick={() => setShowImport(!showImport)}>
@@ -343,9 +362,9 @@ export default function Banking() {
                 <tr style={{ borderBottom: "1px solid var(--hair)", textAlign: "left", color: "var(--text-3)" }}>
                   <th style={{ padding: "12px 16px", width: 110 }}>Date</th>
                   <th style={{ padding: "12px 16px" }}>Bank Description</th>
-                  <th style={{ padding: "12px 16px", textAlign: "right", width: 130 }}>Amount</th>
-                  <th style={{ padding: "12px 16px", width: 340 }}>Reconciliation / Suggestion</th>
-                  <th style={{ padding: "12px 16px", textAlign: "right", width: 140 }}>Actions</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", width: 140 }}>Amount</th>
+                  <th style={{ padding: "12px 16px", width: 380 }}>Reconciliation / Suggestion</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", width: 160 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -353,6 +372,9 @@ export default function Banking() {
                   const isDeposit = tx.amountCents > 0;
                   const isMatched = tx.status === "matched";
                   const isIgnored = tx.status === "ignored";
+                  const allocated = tx.allocatedCents ?? 0;
+                  const remaining = tx.remainingCents ?? Math.max(0, tx.amountCents - allocated);
+                  const isPartial = !isMatched && allocated > 0;
                   const sug = tx.suggestion;
 
                   return (
@@ -386,24 +408,31 @@ export default function Banking() {
                         }}
                         className="num"
                       >
-                        {isDeposit ? "+" + rand(tx.amountCents) : rand(tx.amountCents)}
+                        <div>{isDeposit ? "+" + rand(tx.amountCents) : rand(tx.amountCents)}</div>
+                        {isPartial && (
+                          <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 500, marginTop: 3 }}>
+                            Rem: {rand(remaining)}
+                          </div>
+                        )}
                       </td>
 
                       <td style={{ padding: "14px 16px", verticalAlign: "top" }}>
                         {isMatched ? (
                           <div>
                             <Pill tone="ok">✓ Reconciled</Pill>
-                            <a
-                              href={`#/invoices/${tx.matchedDocumentId}`}
-                              style={{ fontSize: 12, color: "var(--accent)", marginLeft: 8, fontWeight: 550 }}
-                            >
-                              Invoice {tx.matchedDocumentNumber ?? `#${tx.matchedDocumentId}`}
-                            </a>
+                            <span style={{ fontSize: 12, color: "var(--accent)", marginLeft: 8, fontWeight: 550 }}>
+                              {tx.matchedDocumentNumber ?? `Invoice #${tx.matchedDocumentId}`}
+                            </span>
                           </div>
                         ) : isIgnored ? (
                           <Pill tone="plain">Ignored (Non-invoice)</Pill>
                         ) : isDeposit ? (
                           <div>
+                            {isPartial && (
+                              <div style={{ marginBottom: 8, padding: "6px 10px", borderRadius: 6, background: "rgba(91, 228, 239, 0.08)", border: "1px solid rgba(91, 228, 239, 0.25)", fontSize: 11.5 }}>
+                                <strong>Partially allocated:</strong> {rand(allocated)} to <strong>{tx.matchedDocumentNumber}</strong> · <strong>{rand(remaining)}</strong> left to match
+                              </div>
+                            )}
                             {sug ? (
                               <div style={{ marginBottom: 6 }}>
                                 <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 3 }}>
@@ -423,34 +452,53 @@ export default function Banking() {
                               </div>
                             ) : (
                               <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 6 }}>
-                                No automatic match found. Select open invoice:
+                                {isPartial ? "Select next open invoice for remaining balance:" : "No automatic match found. Select open invoice:"}
                               </div>
                             )}
 
-                            {/* Manual invoice selection dropdown */}
+                            {/* Manual invoice selection dropdown + optional custom split amount */}
                             {openInvoices.length > 0 && (
-                              <select
-                                value={manualInvoiceMap[tx.id] ?? sug?.documentId ?? ""}
-                                onChange={(e) =>
-                                  setManualInvoiceMap((m) => ({ ...m, [tx.id]: Number(e.target.value) }))
-                                }
-                                style={{
-                                  width: "100%",
-                                  padding: "4px 8px",
-                                  fontSize: 11,
-                                  background: "rgba(0,0,0,0.3)",
-                                  border: "1px solid var(--hair)",
-                                  borderRadius: 6,
-                                  color: "var(--text-1)",
-                                }}
-                              >
-                                <option value="">-- Choose different open invoice --</option>
-                                {openInvoices.map((inv) => (
-                                  <option key={inv.id} value={inv.id}>
-                                    {inv.number} • {inv.customerName} (Open: {rand(inv.openCents)})
-                                  </option>
-                                ))}
-                              </select>
+                              <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                                <select
+                                  value={manualInvoiceMap[tx.id] ?? sug?.documentId ?? ""}
+                                  onChange={(e) =>
+                                    setManualInvoiceMap((m) => ({ ...m, [tx.id]: Number(e.target.value) }))
+                                  }
+                                  style={{
+                                    flex: "1 1 200px",
+                                    padding: "4px 8px",
+                                    fontSize: 11,
+                                    background: "rgba(0,0,0,0.3)",
+                                    border: "1px solid var(--hair)",
+                                    borderRadius: 6,
+                                    color: "var(--text-1)",
+                                  }}
+                                >
+                                  <option value="">-- Choose open invoice --</option>
+                                  {openInvoices.map((inv) => (
+                                    <option key={inv.id} value={inv.id}>
+                                      {inv.number} • {inv.customerName} (Open: {rand(inv.openCents)})
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  placeholder={`Amt (max ${(remaining / 100).toFixed(2)})`}
+                                  value={manualAmountMap[tx.id] ?? ""}
+                                  onChange={(e) => setManualAmountMap((m) => ({ ...m, [tx.id]: e.target.value }))}
+                                  style={{
+                                    width: 115,
+                                    padding: "4px 8px",
+                                    fontSize: 11,
+                                    background: "rgba(0,0,0,0.3)",
+                                    border: "1px solid var(--hair)",
+                                    borderRadius: 6,
+                                    color: "var(--text-1)",
+                                  }}
+                                  title="Optional custom rand amount to allocate to this invoice"
+                                />
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -478,7 +526,7 @@ export default function Banking() {
                             Restore
                           </button>
                         ) : isDeposit ? (
-                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
                             <button
                               className="btn small primary"
                               onClick={() => handleMatch(tx)}
@@ -486,14 +534,25 @@ export default function Banking() {
                             >
                               {busyId === tx.id ? "Matching..." : "Match"}
                             </button>
-                            <button
-                              className="btn small ghost"
-                              onClick={() => handleIgnore(tx.id)}
-                              disabled={busyId === tx.id}
-                              title="Exclude from invoice matching"
-                            >
-                              Ignore
-                            </button>
+                            {isPartial ? (
+                              <button
+                                className="btn small ghost"
+                                onClick={() => handleUnmatch(tx.id, false)}
+                                disabled={busyId === tx.id}
+                                title="Undo partial allocations on this deposit"
+                              >
+                                Undo
+                              </button>
+                            ) : (
+                              <button
+                                className="btn small ghost"
+                                onClick={() => handleIgnore(tx.id)}
+                                disabled={busyId === tx.id}
+                                title="Exclude from invoice matching"
+                              >
+                                Ignore
+                              </button>
+                            )}
                           </div>
                         ) : (
                           <button

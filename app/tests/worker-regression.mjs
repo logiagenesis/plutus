@@ -289,6 +289,94 @@ ok("emailing statement requires valid email", (await call(env, "customers/1/stat
 let emailStmt = await call(env, "customers/1/statement/send", "POST", { toEmail: "accounts@testcustomer.co.za", ccEmail: "accounts@logia.co.za" });
 ok("statement email sent and audited", emailStmt.status === 200 && emailStmt.body.ok === true && emailStmt.body.recipient === "accounts@testcustomer.co.za");
 
+// Piece 6.1: Recurring Template CRUD
+let newRec = await call(env, "recurring", "POST", {
+  companyId: "logia-services",
+  customerId: 1,
+  frequency: "monthly",
+  startDate: "2026-11-25",
+  active: true,
+  reference: "Managed Hosting",
+  vat: false,
+  lines: [{ description: "Dedicated Server", quantity: "1", unitPriceExclCents: 25000, discountPercent: "0" }],
+});
+ok("create recurring template succeeds and assigns RINV number", newRec.status === 200 && newRec.body.ok === true && /^RINV\d+$/.test(newRec.body.number));
+
+let updRec = await call(env, `recurring/${newRec.body.id}`, "PUT", {
+  companyId: "logia-services",
+  customerId: 1,
+  frequency: "monthly",
+  startDate: "2026-11-25",
+  active: true,
+  reference: "Managed Hosting Pro",
+  vat: false,
+  lines: [{ description: "Dedicated Server Pro", quantity: "1", unitPriceExclCents: 35000, discountPercent: "0" }],
+});
+ok("update recurring template updates lines and totals", updRec.status === 200 && updRec.body.ok === true);
+
+let togRec = await call(env, `recurring/${newRec.body.id}/toggle`, "POST", { active: false });
+ok("pause recurring template toggles active flag", togRec.status === 200 && togRec.body.active === false);
+
+let delRec = await call(env, `recurring/${newRec.body.id}`, "DELETE");
+ok("delete recurring template removes template cleanly", delRec.status === 200 && delRec.body.ok === true);
+
+// Piece 6.2: Credit Notes (CRN) & Invoice Reversal
+let crnDraft = await call(env, "documents", "POST", {
+  companyId: "logia-services",
+  kind: "credit_note",
+  customerId: 1,
+  date: "2026-10-28",
+  reference: `Credit for ${issued.number}`,
+  vat: false,
+  fromDocumentId: inv.id,
+  lines: [{ description: "Service credit adjustment", quantity: "1", unitPriceExclCents: 2000, discountPercent: "0" }],
+});
+ok("credit note draft created linked to invoice", crnDraft.status === 200 && crnDraft.body.kind === "credit_note" && crnDraft.body.from_number === issued.number);
+
+let crnIssued = await call(env, `documents/${crnDraft.body.id}/issue`, "POST", { version: crnDraft.body.version });
+ok("credit note issued with CRN number", crnIssued.status === 200 && /^CRN\d+$/.test(crnIssued.body.number));
+
+let invAfterCrn = await call(env, "documents/" + inv.id);
+ok("credited invoice paid_cents includes issued credit note amount (4000 payment + 2000 credit = 6000)", invAfterCrn.body.paid_cents === 6000 && invAfterCrn.body.creditNotes.length === 1);
+
+// Piece 6.3: Split / Multi-Invoice Bank Deposit Matching
+// inv has 4000 remaining open (10000 total - 4000 payment - 2000 credit note), and genDoc (from recurring run) has 1000 open.
+// tx2 is a 6000 (R 60.00) deposit ("DEP FROM RENAMED"). Let's match 4000 to inv first, then 1000 to genDoc!
+let splitMatch1 = await call(env, "bank/match", "POST", { transactionId: tx2.id, documentId: inv.id });
+ok("first split match allocates remaining 4000 to first invoice and keeps deposit unmatched with 2000 remaining",
+  splitMatch1.status === 200 && splitMatch1.body.amountMatchedCents === 4000 && splitMatch1.body.remainingCents === 2000 && splitMatch1.body.status === "unmatched");
+
+let splitMatch2 = await call(env, "bank/match", "POST", { transactionId: tx2.id, documentId: genDoc.id });
+ok("second split match allocates 1000 to second invoice from same bank deposit",
+  splitMatch2.status === 200 && splitMatch2.body.amountMatchedCents === 1000 && splitMatch2.body.allocatedCents === 5000 && splitMatch2.body.remainingCents === 1000);
+
+let splitUnmatch = await call(env, "bank/unmatch", "POST", { transactionId: tx2.id });
+ok("unmatching split deposit voids all linked payments across multiple invoices", splitUnmatch.status === 200 && splitUnmatch.body.status === "unmatched");
+
+// Piece 6.4 & 6.5: Editable Company Settings, Historical Sage Cutover Settlement & Test Email
+let updCo = await call(env, "companies/logia-services", "PUT", {
+  displayName: "Logia Services (Pty) Ltd",
+  registeredName: "Logia Services (Pty) Ltd",
+  registrationNumber: "2019/516462/07",
+  email: "accounts@logia.co.za",
+  telephone: "+27 82 553 6035",
+  address: ["Menlyn Maine", "Pretoria"],
+  defaultMessage: "Bank: FNB\nAccount Name: Logia Services (Pty) Ltd\nAccount Number: 62000000000\nBranch Code: 250655\nProof of payment: accounts@logia.co.za",
+  setUp: true,
+});
+ok("company details updated via PUT /api/companies/:id", updCo.status === 200 && updCo.body.registration_number === "2019/516462/07");
+
+// Insert a synthetic historical Sage invoice and test cutover settlement
+db.db.prepare("INSERT INTO documents (company_id, kind, number, status, customer_id, date, total_cents, exclusive_cents, tax_cents, source, sage_id) VALUES ('logia-services','invoice','INV00000099','issued',1,'2024-05-25',50000,50000,0,'sage',999001)").run();
+let settleRes = await call(env, "companies/logia-services/settle-sage", "POST", { beforeDate: "2025-12-31", action: "settle" });
+ok("settle-sage marks historical pre-cutover Sage invoices as Paid", settleRes.status === 200 && settleRes.body.updatedCount === 1);
+
+let unsettleRes = await call(env, "companies/logia-services/settle-sage", "POST", { beforeDate: "2025-12-31", action: "unsettle" });
+ok("settle-sage unsettle reverts cutover settlement", unsettleRes.status === 200 && unsettleRes.body.updatedCount === 1);
+
+let testEm = await call(env, "settings/test-email", "POST", { companyId: "logia-services", toEmail: "dennis@logia.co.za" });
+ok("test-email endpoint verifies outbound email delivery", testEm.status === 200 && testEm.body.ok === true && testEm.body.recipient === "dennis@logia.co.za");
+
 // F08: clearing a password (reset) ends existing sessions
 db.db.prepare("UPDATE users SET password_hash=NULL WHERE id=1").run();
 ok("session invalid after password reset", (await call(env, "bootstrap")).status === 401);

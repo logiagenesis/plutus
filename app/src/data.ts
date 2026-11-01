@@ -6,6 +6,7 @@ export type Line = {
   quantity: string; unitPriceExclCents: number; discountPercent: string;
   exclusiveCents: number; taxRate: string; taxCents: number; totalCents: number;
 };
+export type LinkedCreditNote = { id: number; number: string | null; date: string; total_cents: number; status: string };
 export type Doc = {
   sageId: number; // internal document id (kept name for compatibility)
   kind: "invoice" | "quote" | "credit_note";
@@ -16,6 +17,7 @@ export type Doc = {
   amountDueCents: number | null; sageStatus: string | null; fromDocument: string | null; lines: Line[];
   firstLine?: string | null; lineCount?: number; version: number; message?: string | null; vat?: boolean;
   source?: "app" | "sage"; paidCents?: number; payments?: Payment[];
+  creditNotes?: LinkedCreditNote[];
   sentAt?: string | null; sentTo?: string | null; emails?: EmailMessage[];
   customerSnapshot?: Snapshot | null; companySnapshot?: CompanySnapshot | null;
 };
@@ -26,7 +28,7 @@ export type Snapshot = { name: string; contact: string | null; email: string | n
 export type CompanySnapshot = { id: string; displayName: string; registeredName: string | null; registrationNumber: string | null; vatNumber: string | null; email: string | null; telephone: string | null; address: string[] | null; defaultMessage?: string | null };
 const parseObj = <T,>(s: unknown): T | null => { if (typeof s !== "string" || !s) return null; try { return JSON.parse(s) as T; } catch { return null; } };
 const mapPayment = (p: any): Payment => ({ id: p.id, date: p.date, amountCents: p.amount_cents, method: p.method, reference: p.reference, note: p.note, createdBy: p.created_by, createdAt: p.created_at, voidedAt: p.voided_at });
-/** What is still owed on an issued invoice, from payments recorded in Plutus. */
+/** What is still owed on an issued invoice, from payments and credit notes recorded in Plutus. */
 export const openCents = (d: Doc) => Math.max(0, d.totalCents - (d.paidCents ?? 0));
 export type Recurring = Doc & { frequency: string; startDate: string; lastRunDate: string | null; active: boolean; message: string | null };
 export type Customer = {
@@ -100,7 +102,8 @@ export const mapDoc = (d: any): Doc => ({
   sageStatus: d.sage_status, fromDocument: d.from_number, lines: Array.isArray(d.lines) ? d.lines.map(mapLine) : [], firstLine: d.first_line, lineCount: d.line_count, version: d.version,
   message: d.message, vat: d.vat_rate ? d.vat_rate !== "0" : (d.tax_cents ?? 0) > 0,
   source: d.source, payments: Array.isArray(d.payments) ? d.payments.map(mapPayment) : undefined,
-  paidCents: Array.isArray(d.payments) ? d.payments.filter((p: any) => !p.voided_at).reduce((a: number, p: any) => a + p.amount_cents, 0) : (d.paid_cents ?? 0),
+  creditNotes: Array.isArray(d.creditNotes) ? d.creditNotes : undefined,
+  paidCents: typeof d.paid_cents === "number" ? d.paid_cents : (Array.isArray(d.payments) ? d.payments.filter((p: any) => !p.voided_at).reduce((a: number, p: any) => a + p.amount_cents, 0) : 0),
   sentAt: d.sent_at ?? null, sentTo: d.sent_to ?? null,
   emails: Array.isArray(d.emails) ? d.emails.map(mapEmail) : undefined,
   customerSnapshot: parseObj<Snapshot>(d.customer_snapshot_json), companySnapshot: parseObj<CompanySnapshot>(d.company_snapshot_json),
@@ -112,6 +115,7 @@ export let customersById = new Map<number, Customer>();
 export let itemsById = new Map<number, Item>();
 export let invoices: Doc[] = [];
 export let quotes: Doc[] = [];
+export let creditNotes: Doc[] = [];
 
 export async function loadData(companyId: string) {
   const b = await api<any>(`bootstrap?company=${encodeURIComponent(companyId)}`);
@@ -131,10 +135,11 @@ export async function loadData(companyId: string) {
   itemsById = new Map(items.map((i) => [i.sageId, i]));
   invoices = documents.filter((d) => d.kind === "invoice");
   quotes = documents.filter((d) => d.kind === "quote");
+  creditNotes = documents.filter((d) => d.kind === "credit_note");
 }
 
 export const customerName = (id: number, fallback?: string) => customersById.get(id)?.name ?? fallback ?? "Unknown customer";
-export function nextNumber(kind: "invoice" | "quote") {
+export function nextNumber(kind: "invoice" | "quote" | "credit_note") {
   const s = data.sequences.find((x) => x.kind === kind);
   return s ? s.prefix + String(s.next_value).padStart(s.width, "0") : "";
 }
@@ -191,6 +196,11 @@ export function quoteStatus(d: Doc): { label: string; tone: Tone } {
   if (!d.sageStatus) return d.sentAt ? { label: "Sent", tone: "ok" } : { label: "Issued", tone: "info" };
   return { label: d.sageStatus, tone: "plain" };
 }
+export function creditNoteStatus(d: Doc): { label: string; tone: Tone } {
+  if (d.status === "draft") return { label: "Draft", tone: "info" };
+  if (d.sentAt) return { label: "Sent", tone: "ok" };
+  return { label: "Issued", tone: "ok" };
+}
 
 export type BankTransaction = {
   id: number;
@@ -199,6 +209,8 @@ export type BankTransaction = {
   date: string;
   description: string;
   amountCents: number;
+  allocatedCents?: number;
+  remainingCents?: number;
   balanceCents: number | null;
   status: "unmatched" | "matched" | "ignored";
   matchedDocumentId: number | null;

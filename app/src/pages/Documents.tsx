@@ -1,23 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoices, quotes, customerName, fmtDate, invoiceStatus, quoteStatus, data, api, mapDoc, todayISO, openCents, parseBankDetails, type Doc } from "../data";
+import { invoices, quotes, creditNotes, customerName, fmtDate, invoiceStatus, quoteStatus, creditNoteStatus, data, api, mapDoc, todayISO, openCents, parseBankDetails, type Doc } from "../data";
 import { rand } from "../money";
-import { parsePrice } from "./Editor";
+import { parsePrice, type Kind } from "./Editor";
 import { I, Pill, Empty } from "../ui";
 import { go, useApp } from "../App";
 import Paper from "./Paper";
 
-type Kind = "invoice" | "quote";
 const PAGE = 25;
+const baseFor = (kind: Kind) => kind === "invoice" ? "invoices" : kind === "quote" ? "quotes" : "credit-notes";
+const pluralFor = (kind: Kind) => kind === "invoice" ? "Invoices" : kind === "quote" ? "Quotes" : "Credit Notes";
+const labelFor = (kind: Kind) => kind === "invoice" ? "invoice" : kind === "quote" ? "quote" : "credit note";
 
 export function DocList({ kind }: { kind: Kind }) {
   useApp();
-  const all = kind === "invoice" ? invoices : quotes;
+  const all = kind === "invoice" ? invoices : kind === "quote" ? quotes : creditNotes;
   const years = useMemo(() => [...new Set(all.map((d) => d.date.slice(0, 4)))].sort().reverse(), [all]);
   const [q, setQ] = useState("");
   const [year, setYear] = useState("all");
   const [status, setStatus] = useState("all");
   const [page, setPage] = useState(0);
-  const statusOf = (d: Doc) => (kind === "invoice" ? invoiceStatus(d) : quoteStatus(d));
+  const statusOf = (d: Doc) => (kind === "invoice" ? invoiceStatus(d) : kind === "quote" ? quoteStatus(d) : creditNoteStatus(d));
   const statuses = useMemo(() => [...new Set(all.map((d) => statusOf(d).label))], [all]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rows = all.filter((d) => {
@@ -30,9 +32,9 @@ export function DocList({ kind }: { kind: Kind }) {
   });
   const shown = rows.slice(page * PAGE, page * PAGE + PAGE);
   const total = rows.reduce((a, d) => a + d.totalCents, 0);
-  const label = kind === "invoice" ? "Invoices" : "Quotes";
-  const base = kind === "invoice" ? "invoices" : "quotes";
-  const fromSage = all.some((d) => d.sageStatus);
+  const label = pluralFor(kind);
+  const base = baseFor(kind);
+  const fromSage = kind === "invoice" && all.some((d) => d.source === "sage" && d.sageStatus !== "Paid" && openCents(d) > 0);
   const owed = kind === "invoice" ? all.filter((d) => d.status === "issued" && d.source === "app") : [];
   const owedCents = owed.reduce((x, d) => x + openCents(d), 0);
   const owedCount = owed.filter((d) => openCents(d) > 0).length;
@@ -41,13 +43,17 @@ export function DocList({ kind }: { kind: Kind }) {
     <div className="page">
       <div className="page-head">
         <div><h1>{label}</h1><p className="sub">{all.length} {label.toLowerCase()}{owedCount > 0 && <> · <span style={{ color: "var(--accent)" }}>{owedCount} Plutus invoice{owedCount > 1 ? "s" : ""} owed: {rand(owedCents)}</span></>}</p></div>
-        <a className="btn primary" href={`#/${base}/new`}><I.plus />New {kind}</a>
+        <div className="toolbar">
+          {kind === "invoice" && <a className="btn" href="#/credit-notes">Credit notes ({creditNotes.length})</a>}
+          {kind === "credit_note" && <a className="btn" href="#/invoices"><I.back />Back to Invoices</a>}
+          <a className="btn primary" href={`#/${base}/new`}><I.plus />New {labelFor(kind)}</a>
+        </div>
       </div>
       {kind === "invoice" && fromSage && (
         <div className="notice" style={{ marginBottom: 16 }}>
           <I.alert />
-          <div><strong>Payments were not recorded in Sage after February 2022.</strong>
-            <p>So almost every imported invoice shows “Not checked”. This is not money owed until we match it to your FNB statement.</p></div>
+          <div><strong>Historical Sage invoices before cutover show “Not checked”.</strong>
+            <p>Payments after February 2022 were not exported from Sage. You can settle pre-cutover historical Sage invoices in <a href="#/settings" style={{ color: "var(--accent)", textDecoration: "underline" }}>Settings</a> so only active open balances remain.</p></div>
         </div>
       )}
       <section className="glass panel">
@@ -69,7 +75,7 @@ export function DocList({ kind }: { kind: Kind }) {
           : rows.length === 0 ? <Empty title="Nothing matches">Try a different search or clear the filters.</Empty> : (
           <div className="table-wrap">
             <table className="grid">
-              <thead><tr><th>Number</th><th>Customer</th><th className="hide-xs">Date</th><th className="hide-sm">{kind === "invoice" ? "Due" : "Reference"}</th><th className="r">Total</th><th className="hide-sm">Status</th></tr></thead>
+              <thead><tr><th>Number</th><th>Customer</th><th className="hide-xs">Date</th><th className="hide-sm">{kind === "invoice" ? "Due" : kind === "credit_note" ? "Credits / Ref" : "Reference"}</th><th className="r">Total</th><th className="hide-sm">Status</th></tr></thead>
               <tbody>
                 {shown.map((d) => {
                   const st = statusOf(d);
@@ -79,7 +85,7 @@ export function DocList({ kind }: { kind: Kind }) {
                       <td className="strong">{d.status === "draft" ? <span className="muted">Draft</span> : d.number}</td>
                       <td><div>{customerName(d.customerSageId)}</div><div className="cell-sub">{d.firstLine}{(d.lineCount ?? 0) > 1 ? ` + ${(d.lineCount ?? 1) - 1} more` : ""}</div></td>
                       <td className="hide-xs muted">{fmtDate(d.date)}</td>
-                      <td className="hide-sm muted">{kind === "invoice" ? fmtDate(d.dueDate) : d.reference ?? "—"}</td>
+                      <td className="hide-sm muted">{kind === "invoice" ? fmtDate(d.dueDate) : (d.fromDocument ?? d.reference ?? "—")}</td>
                       <td className="r num strong">{rand(d.totalCents)}</td>
                       <td className="hide-sm"><Pill tone={st.tone}>{st.label}</Pill></td>
                     </tr>
@@ -105,7 +111,7 @@ export function DocList({ kind }: { kind: Kind }) {
 
 export function DocView({ kind, id }: { kind: Kind; id: string }) {
   const { reload, notify } = useApp();
-  const base = kind === "invoice" ? "invoices" : "quotes";
+  const base = baseFor(kind);
   const [doc, setDoc] = useState<Doc | null | "missing">(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -118,23 +124,24 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
     return () => { live = false; };
   }, [id]);
 
-  const crumb = <a className="crumb" href={`#/${base}`}><I.back />{kind === "invoice" ? "Invoices" : "Quotes"}</a>;
+  const crumb = <a className="crumb" href={`#/${base}`}><I.back />{pluralFor(kind)}</a>;
   if (loadErr) return <div className="page">{crumb}<div className="notice"><I.alert /><div><strong>Couldn’t open this document</strong><p>{loadErr}</p></div></div></div>;
   if (doc === "missing") return <div className="page">{crumb}<Empty title="Not found">This document doesn’t exist.</Empty></div>;
   if (!doc) return <div className="page">{crumb}<div className="skel" style={{ width: 240, height: 34 }} /><div className="detail" style={{ marginTop: 22 }}><div className="skel" style={{ height: 560 }} /><div className="skel" style={{ height: 200 }} /></div></div>;
 
   const d = doc;
   const isDraft = d.status === "draft";
-  const st = kind === "invoice" ? invoiceStatus(d) : quoteStatus(d);
+  const st = kind === "invoice" ? invoiceStatus(d) : kind === "quote" ? quoteStatus(d) : creditNoteStatus(d);
   const c = data.customers.find((x) => x.sageId === d.customerSageId);
-  const label = kind === "invoice" ? "invoice" : "quote";
+  const label = labelFor(kind);
+  const titleCap = kind === "invoice" ? "Invoice" : kind === "quote" ? "Quote" : "Credit note";
   const displayCustomerName = d.customerSnapshot?.name ?? customerName(d.customerSageId, d.customerName);
 
   async function issue() {
     setBusy("issue"); setErr(null);
     try {
       const nd = mapDoc(await api<any>(`documents/${d.sageId}/issue`, { method: "POST", body: { version: d.version } }));
-      await reload(); setDoc(nd); notify(`${kind === "invoice" ? "Invoice" : "Quote"} ${nd.number} issued`);
+      await reload(); setDoc(nd); notify(`${titleCap} ${nd.number} issued`);
     } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(""); setConfirm(""); }
   }
@@ -164,6 +171,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
             <>
               <button className="btn" type="button" onClick={() => setEmailing(true)} title={`Email ${label} to customer`}><I.mail />Email {label}</button>
               {kind === "quote" && <a className="btn primary" href={`#/invoices/new?from=${d.sageId}`}><I.invoice />Turn into invoice</a>}
+              {kind === "invoice" && <a className="btn" href={`#/credit-notes/new?from=${d.sageId}`} title="Create a credit note to reverse or adjust this invoice">Credit note</a>}
               <a className="btn" href={`#/${base}/new?from=${d.sageId}`}><I.copy />Copy</a>
             </>
           )}
@@ -198,6 +206,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
       )}
       <div className="detail">
         <div><Paper kind={kind} number={isDraft ? "Draft" : d.number} date={d.date} dueDate={d.dueDate} reference={d.reference}
+          fromDocument={d.fromDocument}
           customerSageId={d.customerSageId} customerName={displayCustomerName} lines={d.lines} exclusiveCents={d.exclusiveCents}
           taxCents={d.taxCents} totalCents={d.totalCents} discountCents={d.discountCents} message={d.message ?? (kind === "invoice" ? data.invoiceMessage : null)} draft={isDraft}
           customerSnapshot={d.customerSnapshot} companySnapshot={d.companySnapshot} /></div>
@@ -205,10 +214,10 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
           <section className="glass">
             <div className="panel-head"><h2>Summary</h2></div>
             <dl className="kv num">
-              <dt>Total</dt><dd className="strong">{rand(d.totalCents)}</dd>
+              <dt>{kind === "credit_note" ? "Total credit" : "Total"}</dt><dd className="strong">{rand(d.totalCents)}</dd>
               <dt>VAT</dt><dd>{rand(d.taxCents)}</dd>
-              <dt>{kind === "invoice" ? "Due date" : "Valid until"}</dt><dd>{fmtDate(d.dueDate)}</dd>
-              {d.fromDocument && <><dt>From</dt><dd>{d.fromDocument}</dd></>}
+              {kind !== "credit_note" && <><dt>{kind === "invoice" ? "Due date" : "Valid until"}</dt><dd>{fmtDate(d.dueDate)}</dd></>}
+              {d.fromDocument && <><dt>{kind === "credit_note" ? "Credits invoice" : "From"}</dt><dd>{d.fromDocument}</dd></>}
               {d.reference && <><dt>Reference</dt><dd>{d.reference}</dd></>}
             </dl>
           </section>
@@ -274,14 +283,28 @@ function Payments({ d, onChange }: { d: Doc; onChange: (d: Doc) => Promise<void>
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
   }
   const pays = (d.payments ?? []).filter((p) => !p.voidedAt);
+  const creds = d.creditNotes ?? [];
   return (
     <section className="glass">
-      <div className="panel-head"><h2>Payments</h2></div>
+      <div className="panel-head"><h2>Payments &amp; Credits</h2></div>
       <dl className="kv num">
-        <dt>Received</dt><dd>{rand(d.paidCents ?? 0)}</dd>
+        <dt>Settled / Credited</dt><dd>{rand(d.paidCents ?? 0)}</dd>
         <dt>Still owed</dt><dd className="strong">{rand(open)}</dd>
       </dl>
-      {d.source === "sage" && pays.length === 0 && <p className="muted" style={{ padding: "0 18px" }}>Imported from Sage. Payments after February 2022 were not recorded in Sage, so check your bank statement before chasing this one.</p>}
+      {d.source === "sage" && pays.length === 0 && creds.length === 0 && d.sageStatus !== "Paid" && (
+        <p className="muted" style={{ padding: "0 18px" }}>Imported from Sage. Payments after February 2022 were not recorded in Sage, so check your bank statement before chasing this one.</p>
+      )}
+      {creds.length > 0 && (
+        <ul className="pay-list" style={{ listStyle: "none", margin: 0, padding: "0 18px" }}>
+          {creds.map((cn) => (
+            <li key={cn.id} style={{ display: "flex", gap: 10, alignItems: "center", padding: "6px 0" }}>
+              <span className="num strong" style={{ color: "var(--ok)" }}>−{rand(cn.total_cents)}</span>
+              <span className="muted"><a href={`#/credit-notes/${cn.id}`} style={{ color: "var(--accent)", textDecoration: "underline" }}>{cn.number ?? "Draft Credit Note"}</a> · {fmtDate(cn.date)}</span>
+              <Pill tone={cn.status === "issued" ? "ok" : "info"}>{cn.status}</Pill>
+            </li>
+          ))}
+        </ul>
+      )}
       {pays.length > 0 && (
         <ul className="pay-list" style={{ listStyle: "none", margin: 0, padding: "0 18px" }}>
           {pays.map((p) => (
@@ -318,7 +341,7 @@ function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose:
   const { notify } = useApp();
   const co = d.companySnapshot ?? data.companies.find((c) => c.id === data.companyId) ?? data.companies[0];
   const c = d.customerSageId ? data.customers.find((x) => x.sageId === d.customerSageId) : undefined;
-  const label = kind === "invoice" ? "Invoice" : "Quotation";
+  const label = kind === "invoice" ? "Invoice" : kind === "quote" ? "Quotation" : "Credit Note";
   const defSubject = `${label} ${d.number} from ${co.displayName}`;
   const totalStr = rand(d.totalCents);
   const bank = parseBankDetails(co, d.message);
@@ -363,7 +386,7 @@ function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose:
       <I.mail />
       <div style={{ flex: 1 }}>
         <strong id="em-h">Email {label} {d.number} to Customer</strong>
-        <p className="muted" style={{ marginTop: 2 }}>Sends from {co.email ?? "accounts@logia.co.za"} with delivery logged in history.</p>
+        <p className="muted" style={{ marginTop: 2 }}>Sends formatted HTML email + printable attachment from {co.email ?? "accounts@logia.co.za"} with delivery logged in history.</p>
         <form className="stack" onSubmit={send} style={{ marginTop: 14 }}>
           <div className="form-row">
             <label className="field"><span>Recipient Email</span><input className="input" type="email" required value={toEmail} onChange={(e) => setToEmail(e.target.value)} placeholder="customer@example.com" /></label>
