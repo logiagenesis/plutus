@@ -1,4 +1,4 @@
-import { data, customersById, fmtDate, type Snapshot, type CompanySnapshot } from "../data";
+import { data, customersById, fmtDate, parseBankDetails, stripRedundantBankLines, type Snapshot, type CompanySnapshot } from "../data";
 import { rand } from "../money";
 
 export type PaperLine = { description: string; comments?: string | null; quantity: string; unitPriceExclCents: number; discountPercent: string; taxRate: string; exclusiveCents: number; taxCents: number; totalCents: number };
@@ -20,6 +20,9 @@ export default function Paper(p: Props) {
   const c = s ? { name: s.name, contactName: s.contact, vatNumber: s.vat, postalAddress: s.postal, deliveryAddress: s.delivery } : cur;
   const addr = c?.postalAddress ?? c?.deliveryAddress ?? [];
   const anyDiscount = p.lines.some((l) => Number(l.discountPercent) > 0);
+  const bank = parseBankDetails(co, p.message);
+  const displayMessage = p.kind === "invoice" ? stripRedundantBankLines(p.message) : p.message;
+
   return (
     <article className="paper" aria-label={`${p.kind === "invoice" ? "Invoice" : "Quote"} preview`}>
       <div className="p-top">
@@ -78,17 +81,17 @@ export default function Paper(p: Props) {
         <div className="p-bank">
           <div className="p-bank-head">Banking &amp; Payment Details</div>
           <div className="p-bank-grid">
-            <div><span className="p-muted">Bank:</span> <strong>First National Bank (FNB)</strong></div>
-            <div><span className="p-muted">Account Name:</span> <strong>{co.registeredName || co.displayName}</strong></div>
-            <div><span className="p-muted">Account Number:</span> <strong className="num">62932184469</strong></div>
-            <div><span className="p-muted">Account Type:</span> <strong>Current / Cheque Account</strong></div>
-            <div><span className="p-muted">Branch Code:</span> <strong className="num">250 655</strong> (Menlyn Maine)</div>
-            <div><span className="p-muted">Payment Reference:</span> <strong className="num">{p.draft ? "Invoice Number" : p.number}</strong></div>
+            <div><span className="p-muted">Bank:</span> <strong>{bank.bank}</strong></div>
+            <div><span className="p-muted">Account Name:</span> <strong>{bank.accountName}</strong></div>
+            <div><span className="p-muted">Account Number:</span> <strong className="num">{bank.accountNumber}</strong></div>
+            <div><span className="p-muted">Account Type:</span> <strong>{bank.accountType}</strong></div>
+            <div><span className="p-muted">Branch Code:</span> <strong className="num">{bank.branchCode}</strong></div>
+            <div><span className="p-muted">Payment Reference:</span> <strong className="num">{p.draft ? (c?.name || "Invoice Number") : p.number}</strong></div>
           </div>
-          <div className="p-bank-foot">Please email proof of payment to <strong>{co.email || "accounts@logia.co.za"}</strong></div>
+          <div className="p-bank-foot">Please email proof of payment to <strong>{bank.proofEmail}</strong></div>
         </div>
       )}
-      {p.message && <div className="p-msg">{p.message}</div>}
+      {displayMessage && <div className="p-msg">{displayMessage}</div>}
     </article>
   );
 }

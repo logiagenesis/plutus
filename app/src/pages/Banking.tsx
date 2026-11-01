@@ -5,7 +5,7 @@ import { rand } from "../money";
 import { I, Pill } from "../ui";
 
 export default function Banking() {
-  const { companyId, notify } = useApp();
+  const { companyId, notify, reload } = useApp();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -104,7 +104,7 @@ export default function Banking() {
         },
       });
       notify("Transaction reconciled and payment recorded.");
-      await loadData();
+      await Promise.all([loadData(), reload()]);
     } catch (e) {
       notify(e instanceof Error ? e.message : "Matching failed");
     } finally {
@@ -128,17 +128,17 @@ export default function Banking() {
     }
   };
 
-  const handleUnmatch = async (txId: number) => {
+  const handleUnmatch = async (txId: number, wasIgnored = false) => {
     try {
       setBusyId(txId);
       await api("bank/unmatch", {
         method: "POST",
         body: { transactionId: txId },
       });
-      notify("Transaction unreconciled and payment reversed.");
-      await loadData();
+      notify(wasIgnored ? "Transaction restored to unmatched." : "Transaction unreconciled and payment reversed.");
+      await Promise.all([loadData(), reload()]);
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Failed to unmatch");
+      notify(e instanceof Error ? e.message : "Failed to update transaction");
     } finally {
       setBusyId(null);
     }
@@ -156,7 +156,7 @@ export default function Banking() {
       if (search.trim()) {
         const q = search.toLowerCase();
         const mDesc = tx.description.toLowerCase().includes(q);
-        const mInv = tx.suggestion?.invoiceNumber.toLowerCase().includes(q);
+        const mInv = tx.suggestion?.invoiceNumber.toLowerCase().includes(q) || tx.matchedDocumentNumber?.toLowerCase().includes(q);
         const mCust = tx.suggestion?.customerName.toLowerCase().includes(q);
         return mDesc || mInv || mCust;
       }
@@ -269,7 +269,7 @@ export default function Banking() {
 
       {/* Filter and Search Bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
             className={`btn small ${activeTab === "unmatched" ? "primary" : "ghost"}`}
             onClick={() => setActiveTab("unmatched")}
@@ -336,176 +336,181 @@ export default function Banking() {
           </button>
         </div>
       ) : (
-        <div className="glass" style={{ overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--hair)", textAlign: "left", color: "var(--text-3)" }}>
-                <th style={{ padding: "12px 16px", width: 110 }}>Date</th>
-                <th style={{ padding: "12px 16px" }}>Bank Description</th>
-                <th style={{ padding: "12px 16px", textAlign: "right", width: 130 }}>Amount</th>
-                <th style={{ padding: "12px 16px", width: 340 }}>Reconciliation / Suggestion</th>
-                <th style={{ padding: "12px 16px", textAlign: "right", width: 140 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTransactions.map((tx) => {
-                const isDeposit = tx.amountCents > 0;
-                const isMatched = tx.status === "matched";
-                const isIgnored = tx.status === "ignored";
-                const sug = tx.suggestion;
+        <div className="glass panel">
+          <div className="table-wrap">
+            <table className="grid" style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--hair)", textAlign: "left", color: "var(--text-3)" }}>
+                  <th style={{ padding: "12px 16px", width: 110 }}>Date</th>
+                  <th style={{ padding: "12px 16px" }}>Bank Description</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", width: 130 }}>Amount</th>
+                  <th style={{ padding: "12px 16px", width: 340 }}>Reconciliation / Suggestion</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", width: 140 }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTransactions.map((tx) => {
+                  const isDeposit = tx.amountCents > 0;
+                  const isMatched = tx.status === "matched";
+                  const isIgnored = tx.status === "ignored";
+                  const sug = tx.suggestion;
 
-                return (
-                  <tr
-                    key={tx.id}
-                    style={{
-                      borderBottom: "1px solid var(--hair)",
-                      background: isMatched ? "rgba(74, 222, 128, 0.03)" : isIgnored ? "rgba(255,255,255,0.01)" : "transparent",
-                    }}
-                  >
-                    <td style={{ padding: "14px 16px", verticalAlign: "top", whiteSpace: "nowrap" }} className="num">
-                      {tx.date}
-                    </td>
-
-                    <td style={{ padding: "14px 16px", verticalAlign: "top" }}>
-                      <div style={{ fontWeight: 500, color: "var(--text-1)" }}>{tx.description}</div>
-                      {tx.balanceCents !== null && (
-                        <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
-                          Balance: {rand(tx.balanceCents)}
-                        </div>
-                      )}
-                    </td>
-
-                    <td
+                  return (
+                    <tr
+                      key={tx.id}
                       style={{
-                        padding: "14px 16px",
-                        verticalAlign: "top",
-                        textAlign: "right",
-                        fontWeight: 600,
-                        color: isDeposit ? "var(--ok, #4ade80)" : "var(--text-3)",
+                        borderBottom: "1px solid var(--hair)",
+                        background: isMatched ? "rgba(74, 222, 128, 0.03)" : isIgnored ? "rgba(255,255,255,0.01)" : "transparent",
                       }}
-                      className="num"
                     >
-                      {isDeposit ? "+" + rand(tx.amountCents) : rand(tx.amountCents)}
-                    </td>
+                      <td style={{ padding: "14px 16px", verticalAlign: "top", whiteSpace: "nowrap" }} className="num">
+                        {tx.date}
+                      </td>
 
-                    <td style={{ padding: "14px 16px", verticalAlign: "top" }}>
-                      {isMatched ? (
-                        <div>
-                          <Pill tone="ok">✓ Reconciled</Pill>
-                          <span style={{ fontSize: 12, color: "var(--text-2)", marginLeft: 8 }}>
-                            Matched to Invoice #{tx.matchedDocumentId}
-                          </span>
-                        </div>
-                      ) : isIgnored ? (
-                        <Pill tone="plain">Ignored (Non-invoice)</Pill>
-                      ) : isDeposit ? (
-                        <div>
-                          {sug ? (
-                            <div style={{ marginBottom: 6 }}>
-                              <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 3 }}>
-                                <Pill tone={sug.confidence === "high" ? "ok" : "warn"}>
-                                  {sug.confidence === "high" ? "High Match" : "Probable"}
-                                </Pill>
-                                <span style={{ fontWeight: 550, color: "var(--text-1)" }}>
-                                  {sug.invoiceNumber}
-                                </span>
-                                <span style={{ color: "var(--text-2)", fontSize: 12 }}>
-                                  • {sug.customerName}
-                                </span>
-                              </div>
-                              <div style={{ fontSize: 11, color: "var(--text-3)" }}>
-                                {sug.reason} (Open: {rand(sug.openCents)})
-                              </div>
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 6 }}>
-                              No automatic match found. Select open invoice:
-                            </div>
-                          )}
+                      <td style={{ padding: "14px 16px", verticalAlign: "top" }}>
+                        <div style={{ fontWeight: 500, color: "var(--text-1)" }}>{tx.description}</div>
+                        {tx.balanceCents !== null && (
+                          <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
+                            Balance: {rand(tx.balanceCents)}
+                          </div>
+                        )}
+                      </td>
 
-                          {/* Manual invoice selection dropdown */}
-                          {openInvoices.length > 0 && (
-                            <select
-                              value={manualInvoiceMap[tx.id] ?? sug?.documentId ?? ""}
-                              onChange={(e) =>
-                                setManualInvoiceMap((m) => ({ ...m, [tx.id]: Number(e.target.value) }))
-                              }
-                              style={{
-                                width: "100%",
-                                padding: "4px 8px",
-                                fontSize: 11,
-                                background: "rgba(0,0,0,0.3)",
-                                border: "1px solid var(--hair)",
-                                borderRadius: 6,
-                                color: "var(--text-1)",
-                              }}
+                      <td
+                        style={{
+                          padding: "14px 16px",
+                          verticalAlign: "top",
+                          textAlign: "right",
+                          fontWeight: 600,
+                          color: isDeposit ? "var(--ok, #4ade80)" : "var(--text-3)",
+                        }}
+                        className="num"
+                      >
+                        {isDeposit ? "+" + rand(tx.amountCents) : rand(tx.amountCents)}
+                      </td>
+
+                      <td style={{ padding: "14px 16px", verticalAlign: "top" }}>
+                        {isMatched ? (
+                          <div>
+                            <Pill tone="ok">✓ Reconciled</Pill>
+                            <a
+                              href={`#/invoices/${tx.matchedDocumentId}`}
+                              style={{ fontSize: 12, color: "var(--accent)", marginLeft: 8, fontWeight: 550 }}
                             >
-                              <option value="">-- Choose different open invoice --</option>
-                              {openInvoices.map((inv) => (
-                                <option key={inv.id} value={inv.id}>
-                                  {inv.number} • {inv.customerName} (Open: {rand(inv.openCents)})
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: 12, color: "var(--text-3)" }}>
-                          Debit / Expense (Non-customer)
-                        </span>
-                      )}
-                    </td>
+                              Invoice {tx.matchedDocumentNumber ?? `#${tx.matchedDocumentId}`}
+                            </a>
+                          </div>
+                        ) : isIgnored ? (
+                          <Pill tone="plain">Ignored (Non-invoice)</Pill>
+                        ) : isDeposit ? (
+                          <div>
+                            {sug ? (
+                              <div style={{ marginBottom: 6 }}>
+                                <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 3 }}>
+                                  <Pill tone={sug.confidence === "high" ? "ok" : "warn"}>
+                                    {sug.confidence === "high" ? "High Match" : "Probable"}
+                                  </Pill>
+                                  <span style={{ fontWeight: 550, color: "var(--text-1)" }}>
+                                    {sug.invoiceNumber}
+                                  </span>
+                                  <span style={{ color: "var(--text-2)", fontSize: 12 }}>
+                                    • {sug.customerName}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 11, color: "var(--text-3)" }}>
+                                  {sug.reason} (Open: {rand(sug.openCents)})
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 12, color: "var(--text-3)", marginBottom: 6 }}>
+                                No automatic match found. Select open invoice:
+                              </div>
+                            )}
 
-                    <td style={{ padding: "14px 16px", verticalAlign: "top", textAlign: "right" }}>
-                      {isMatched ? (
-                        <button
-                          className="btn small ghost"
-                          onClick={() => handleUnmatch(tx.id)}
-                          disabled={busyId === tx.id}
-                        >
-                          Undo
-                        </button>
-                      ) : isIgnored ? (
-                        <button
-                          className="btn small ghost"
-                          onClick={() => handleUnmatch(tx.id)}
-                          disabled={busyId === tx.id}
-                        >
-                          Restore
-                        </button>
-                      ) : isDeposit ? (
-                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            {/* Manual invoice selection dropdown */}
+                            {openInvoices.length > 0 && (
+                              <select
+                                value={manualInvoiceMap[tx.id] ?? sug?.documentId ?? ""}
+                                onChange={(e) =>
+                                  setManualInvoiceMap((m) => ({ ...m, [tx.id]: Number(e.target.value) }))
+                                }
+                                style={{
+                                  width: "100%",
+                                  padding: "4px 8px",
+                                  fontSize: 11,
+                                  background: "rgba(0,0,0,0.3)",
+                                  border: "1px solid var(--hair)",
+                                  borderRadius: 6,
+                                  color: "var(--text-1)",
+                                }}
+                              >
+                                <option value="">-- Choose different open invoice --</option>
+                                {openInvoices.map((inv) => (
+                                  <option key={inv.id} value={inv.id}>
+                                    {inv.number} • {inv.customerName} (Open: {rand(inv.openCents)})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 12, color: "var(--text-3)" }}>
+                            Debit / Expense (Non-customer)
+                          </span>
+                        )}
+                      </td>
+
+                      <td style={{ padding: "14px 16px", verticalAlign: "top", textAlign: "right" }}>
+                        {isMatched ? (
                           <button
-                            className="btn small primary"
-                            onClick={() => handleMatch(tx)}
-                            disabled={busyId === tx.id || (!sug?.documentId && !manualInvoiceMap[tx.id])}
+                            className="btn small ghost"
+                            onClick={() => handleUnmatch(tx.id, false)}
+                            disabled={busyId === tx.id}
                           >
-                            {busyId === tx.id ? "Matching..." : "Match"}
+                            Undo
                           </button>
+                        ) : isIgnored ? (
+                          <button
+                            className="btn small ghost"
+                            onClick={() => handleUnmatch(tx.id, true)}
+                            disabled={busyId === tx.id}
+                          >
+                            Restore
+                          </button>
+                        ) : isDeposit ? (
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button
+                              className="btn small primary"
+                              onClick={() => handleMatch(tx)}
+                              disabled={busyId === tx.id || (!sug?.documentId && !manualInvoiceMap[tx.id])}
+                            >
+                              {busyId === tx.id ? "Matching..." : "Match"}
+                            </button>
+                            <button
+                              className="btn small ghost"
+                              onClick={() => handleIgnore(tx.id)}
+                              disabled={busyId === tx.id}
+                              title="Exclude from invoice matching"
+                            >
+                              Ignore
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             className="btn small ghost"
                             onClick={() => handleIgnore(tx.id)}
                             disabled={busyId === tx.id}
-                            title="Exclude from invoice matching"
                           >
                             Ignore
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          className="btn small ghost"
-                          onClick={() => handleIgnore(tx.id)}
-                          disabled={busyId === tx.id}
-                        >
-                          Ignore
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

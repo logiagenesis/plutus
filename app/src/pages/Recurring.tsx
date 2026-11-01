@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { data, customerName, fmtDate, nextRun, todayISO, api, loadData } from "../data";
+import { data, customerName, fmtDate, nextRun, todayISO, api } from "../data";
 import { rand } from "../money";
 import { I, Pill } from "../ui";
 import { go, useApp } from "../App";
@@ -17,6 +17,7 @@ type PreviewResult = {
     customerName: string;
     customerEmail: string | null;
     reference: string | null;
+    frequency?: string;
     totalCents: number;
     alreadyRun: boolean;
     invoiceNumber: string | null;
@@ -24,7 +25,7 @@ type PreviewResult = {
 };
 
 export default function RecurringPage() {
-  const { notify } = useApp();
+  const { notify, reload, companyId, rev } = useApp();
   const today = todayISO();
   const rows = data.recurring.map((r) => ({ r, next: nextRun(r) })).sort((a, b) => (a.next ?? "9").localeCompare(b.next ?? "9") || customerName(a.r.customerSageId).localeCompare(customerName(b.r.customerSageId)));
   const monthly = data.recurring.filter((r) => r.active && r.frequency === "monthly").reduce((a, r) => a + r.totalCents, 0);
@@ -36,10 +37,10 @@ export default function RecurringPage() {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    api<PreviewResult>(`recurring/preview?company=${encodeURIComponent(data.companyId)}`)
+    api<PreviewResult>(`recurring/preview?company=${encodeURIComponent(companyId)}`)
       .then(setPreview)
       .catch((e) => console.warn("Could not load recurring preview", e));
-  }, []);
+  }, [companyId, rev]);
 
   async function executeBatch() {
     setRunning(true);
@@ -47,10 +48,10 @@ export default function RecurringPage() {
     try {
       const res = await api<any>("recurring/run", {
         method: "POST",
-        body: { companyId: data.companyId },
+        body: { companyId },
       });
-      await loadData(data.companyId);
-      const updatedPreview = await api<PreviewResult>(`recurring/preview?company=${encodeURIComponent(data.companyId)}`);
+      await reload();
+      const updatedPreview = await api<PreviewResult>(`recurring/preview?company=${encodeURIComponent(companyId)}`);
       setPreview(updatedPreview);
       notify(`Generated ${res.generatedCount} recurring invoices (${rand(res.totalCents)})`);
       setMsg(`Batch complete: Generated ${res.generatedCount} invoices. ${res.skippedCount} already existed.`);
@@ -67,7 +68,7 @@ export default function RecurringPage() {
       <div className="page-head">
         <div>
           <h1>Recurring invoices</h1>
-          <p className="sub">Automated monthly billing engine. Cloudflare cron runs on the 25th of every month.</p>
+          <p className="sub">Automated monthly &amp; annual billing engine. Scheduled run on the 25th of every month.</p>
         </div>
         {preview && preview.dueCount > 0 && (
           <div className="toolbar">

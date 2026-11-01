@@ -38,7 +38,7 @@ export function saveFile(b: Backup) {
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
 
-const CHUNK = 150;
+const CHUNK = 40;
 
 /** Restores a backup file into a blank Plutus. */
 export async function restoreBackup(b: Backup, email: string, password: string, restoreCode: string, progress: Progress) {

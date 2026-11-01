@@ -56,7 +56,7 @@ export default function Home() {
             <div style={{ minWidth: 0 }}>
               <div className="tile-label"><I.repeat />Next recurring invoices</div>
               <div className="tile-value num" style={{ marginTop: 8 }}>{rand(run.total)}</div>
-              <div className="muted" style={{ marginTop: 4 }}>{run.batch.length} invoices on the schedule · Sage still sends these until automatic sending is switched on in Plutus</div>
+              <div className="muted" style={{ marginTop: 4 }}>{run.batch.length} invoices on the schedule · Generated on the 25th (review and email from Invoices)</div>
               <div className="run-list">
                 {run.batch.slice(0, 8).map((x) => <span className="chip" key={x.r.number}>{customerName(x.r.customerSageId)}</span>)}
                 {run.batch.length > 8 && <span className="chip">+{run.batch.length - 8} more</span>}

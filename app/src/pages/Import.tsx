@@ -40,9 +40,10 @@ export default function ImportPage() {
       ...d.quotes.map((x) => ({ ...x, kind: "quote" })),
       ...d.creditNotes.map((x) => ({ ...x, kind: "credit_note" })),
     ];
+    // Sized so every chunk generates <= 40 SQL statements in env.DB.batch (audit F05)
     const plan: [string, any[][]][] = [
-      ["customers", chunk(d.customers, 60)], ["items", chunk(d.items, 80)],
-      ["recurring", chunk(d.recurringTemplates, 8)], ["documents", chunk(docs, 20)],
+      ["customers", chunk(d.customers, 35)], ["items", chunk(d.items, 40)],
+      ["recurring", chunk(d.recurringTemplates, 5)], ["documents", chunk(docs, 8)],
     ];
     const total = plan.reduce((a, [, c]) => a + c.length, 0) + 2;
     const batchId = `sage-${file.sha.slice(0, 16)}`;

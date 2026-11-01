@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { invoices, quotes, customerName, fmtDate, invoiceStatus, quoteStatus, data, api, mapDoc, todayISO, openCents, type Doc } from "../data";
+import { invoices, quotes, customerName, fmtDate, invoiceStatus, quoteStatus, data, api, mapDoc, todayISO, openCents, parseBankDetails, type Doc } from "../data";
 import { rand } from "../money";
 import { parsePrice } from "./Editor";
 import { I, Pill, Empty } from "../ui";
@@ -128,6 +128,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
   const st = kind === "invoice" ? invoiceStatus(d) : quoteStatus(d);
   const c = data.customers.find((x) => x.sageId === d.customerSageId);
   const label = kind === "invoice" ? "invoice" : "quote";
+  const displayCustomerName = d.customerSnapshot?.name ?? customerName(d.customerSageId, d.customerName);
 
   async function issue() {
     setBusy("issue"); setErr(null);
@@ -149,7 +150,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
       <div className="page-head">
         <div>
           <h1 className="num">{isDraft ? `Draft ${label}` : d.number}</h1>
-          <p className="sub">{customerName(d.customerSageId)} · {fmtDate(d.date)}</p>
+          <p className="sub">{displayCustomerName} · {fmtDate(d.date)}</p>
         </div>
         <div className="toolbar">
           <Pill tone={st.tone}>{st.label}</Pill>
@@ -197,7 +198,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
       )}
       <div className="detail">
         <div><Paper kind={kind} number={isDraft ? "Draft" : d.number} date={d.date} dueDate={d.dueDate} reference={d.reference}
-          customerSageId={d.customerSageId} lines={d.lines} exclusiveCents={d.exclusiveCents}
+          customerSageId={d.customerSageId} customerName={displayCustomerName} lines={d.lines} exclusiveCents={d.exclusiveCents}
           taxCents={d.taxCents} totalCents={d.totalCents} discountCents={d.discountCents} message={d.message ?? (kind === "invoice" ? data.invoiceMessage : null)} draft={isDraft}
           customerSnapshot={d.customerSnapshot} companySnapshot={d.companySnapshot} /></div>
         <div className="stack">
@@ -320,9 +321,14 @@ function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose:
   const label = kind === "invoice" ? "Invoice" : "Quotation";
   const defSubject = `${label} ${d.number} from ${co.displayName}`;
   const totalStr = rand(d.totalCents);
-  const defBody = `Dear ${c?.name ?? "Customer"},\n\nPlease find attached ${label} ${d.number} for ${totalStr}.\n\nPlease contact us should you have any queries.\n\nRegards,\n${co.displayName}`;
+  const bank = parseBankDetails(co, d.message);
+  const lineSummary = d.lines.map((l) => `- ${Number(l.quantity) !== 1 ? `${Number(l.quantity)} x ` : ""}${l.description}: ${rand(l.totalCents)}`).join("\n");
+  const bankSection = kind === "invoice"
+    ? `\n\nBanking Details:\nBank: ${bank.bank}\nAccount Name: ${bank.accountName}\nAccount Number: ${bank.accountNumber}\nBranch Code: ${bank.branchCode}\nPayment Reference: ${d.number}\nProof of Payment: ${bank.proofEmail}`
+    : "";
+  const defBody = `Dear ${d.customerSnapshot?.name ?? c?.name ?? "Customer"},\n\nHere are the details for ${label} ${d.number} (${fmtDate(d.date)}${d.dueDate ? `, due ${fmtDate(d.dueDate)}` : ""}) for ${totalStr}:\n\n${lineSummary}\n\nTotal: ${totalStr}${bankSection}\n\nPlease contact us should you have any queries.\n\nRegards,\n${co.displayName}`;
 
-  const [toEmail, setToEmail] = useState(c?.email ?? "");
+  const [toEmail, setToEmail] = useState(d.customerSnapshot?.email ?? c?.email ?? "");
   const [ccEmail, setCcEmail] = useState(co.email ?? "accounts@logia.co.za");
   const [subject, setSubject] = useState(defSubject);
   const [message, setMessage] = useState(defBody);
@@ -364,7 +370,7 @@ function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose:
             <label className="field"><span>CC Email</span><input className="input" type="email" value={ccEmail} onChange={(e) => setCcEmail(e.target.value)} placeholder="accounts@logia.co.za" /></label>
           </div>
           <label className="field"><span>Subject</span><input className="input" required value={subject} onChange={(e) => setSubject(e.target.value)} /></label>
-          <label className="field"><span>Message Body</span><textarea className="input" rows={6} value={message} onChange={(e) => setMessage(e.target.value)} style={{ height: "auto" }} /></label>
+          <label className="field"><span>Message Body</span><textarea className="input" rows={8} value={message} onChange={(e) => setMessage(e.target.value)} style={{ height: "auto" }} /></label>
           {err && <p className="auth-err" role="alert">{err}</p>}
           <div className="toolbar" style={{ marginTop: 8 }}>
             <button className="btn primary small" type="submit" disabled={busy}>{busy ? "Sending…" : `Send ${label}`}</button>

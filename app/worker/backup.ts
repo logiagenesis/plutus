@@ -115,9 +115,12 @@ async function insertRows(env: Env, table: string, rows: unknown) {
     const keys = Object.keys(row);
     for (const k of keys) if (!cols.has(k)) throw fail(`Column ${k} does not exist in ${table}.`);
     const vals = keys.map((k) => { const v = row[k]; if (v !== null && typeof v === "object") throw fail("A value in the backup is damaged."); return v; });
-    return env.DB.prepare(`INSERT INTO ${q(table)} (${keys.map(q).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`).bind(...vals);
+    return env.DB.prepare(`INSERT OR IGNORE INTO ${q(table)} (${keys.map(q).join(", ")}) VALUES (${keys.map(() => "?").join(", ")})`).bind(...vals);
   });
-  await env.DB.batch(stmts);
+  const BATCH_LIMIT = 40;
+  for (let i = 0; i < stmts.length; i += BATCH_LIMIT) {
+    await env.DB.batch(stmts.slice(i, i + BATCH_LIMIT));
+  }
   return rows.length;
 }
 
@@ -173,6 +176,10 @@ export async function handleRestore(req: Request, env: Env, path: string): Promi
     const have = await counts(env, tables);
     const wrong = tables.filter((t) => have[t] !== j.counts[t]);
     if (wrong.length) return json({ ok: false, error: "Row counts do not match yet.", wrong: wrong.map((t) => ({ table: t, expected: j.counts[t], got: have[t] })) }, 409);
+    const fkErrors = await env.DB.prepare("PRAGMA foreign_key_check").all();
+    if ((fkErrors.results?.length ?? 0) > 0) {
+      return json({ ok: false, error: "Foreign key integrity check failed on restored data.", fkErrors: fkErrors.results }, 409);
+    }
     const idx = j.schema.filter((t) => t.type === "index" && t.sql);
     await env.DB.batch([...idx.map((i) => env.DB.prepare(i.sql!)), env.DB.prepare(`DROP TABLE ${JOB}`)]);
     try { await env.DB.prepare("INSERT INTO audit_events (actor, action, entity, detail_json) VALUES ('restore', 'restored_from_backup', 'system', ?)").bind(JSON.stringify({ counts: have, source: b.source ?? null })).run(); } catch { /* audit table shape may differ in old backups */ }

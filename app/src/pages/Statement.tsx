@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../App";
-import { api, fmtDate, type StatementData } from "../data";
+import { api, fmtDate, parseBankDetails, todayISO, type StatementData } from "../data";
 import { rand } from "../money";
 import { I } from "../ui";
 
@@ -10,11 +10,12 @@ export default function CustomerStatement({ id }: { id: number }) {
   const [error, setError] = useState<string | null>(null);
   const [stmt, setStmt] = useState<StatementData | null>(null);
 
-  // Date range
-  const today = new Date().toISOString().slice(0, 10);
+  // Date range (local SAST date)
+  const today = todayISO();
   const [preset, setPreset] = useState<"30" | "60" | "90" | "month" | "ytd" | "all">("90");
+  const [onlyApp, setOnlyApp] = useState(false);
   const [fromDate, setFromDate] = useState(() => {
-    const d = new Date();
+    const d = new Date(today + "T00:00:00Z");
     d.setUTCDate(d.getUTCDate() - 90);
     return d.toISOString().slice(0, 10);
   });
@@ -28,8 +29,8 @@ export default function CustomerStatement({ id }: { id: number }) {
 
   const applyPreset = (p: "30" | "60" | "90" | "month" | "ytd" | "all") => {
     setPreset(p);
-    const d = new Date();
-    const end = d.toISOString().slice(0, 10);
+    const end = todayISO();
+    const d = new Date(end + "T00:00:00Z");
     setToDate(end);
     if (p === "30") {
       d.setUTCDate(d.getUTCDate() - 30);
@@ -54,7 +55,7 @@ export default function CustomerStatement({ id }: { id: number }) {
       setLoading(true);
       setError(null);
       const res = await api<StatementData>(
-        `customers/${id}/statement?from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}`
+        `customers/${id}/statement?from=${encodeURIComponent(fromDate)}&to=${encodeURIComponent(toDate)}${onlyApp ? "&onlyApp=1" : ""}`
       );
       setStmt(res);
       if (res.customer.email) {
@@ -65,7 +66,7 @@ export default function CustomerStatement({ id }: { id: number }) {
     } finally {
       setLoading(false);
     }
-  }, [id, fromDate, toDate]);
+  }, [id, fromDate, toDate, onlyApp]);
 
   useEffect(() => {
     loadStatement();
@@ -83,6 +84,7 @@ export default function CustomerStatement({ id }: { id: number }) {
         body: {
           fromDate,
           toDate,
+          onlyApp,
           toEmail: toEmail.trim(),
           ccEmail: ccEmail.trim() || undefined,
         },
@@ -112,6 +114,7 @@ export default function CustomerStatement({ id }: { id: number }) {
   const co = stmt.company;
   const cust = stmt.customer;
   const addr = (cust.postal && cust.postal.length > 0 ? cust.postal : cust.delivery) ?? [];
+  const bank = parseBankDetails(co);
 
   return (
     <div className="page">
@@ -132,11 +135,33 @@ export default function CustomerStatement({ id }: { id: number }) {
           </div>
         </div>
 
+        {(stmt.uncheckedSageCount ?? 0) > 0 && (
+          <div className="notice" style={{ marginBottom: 16 }}>
+            <I.alert />
+            <div style={{ flex: 1 }}>
+              <strong>{stmt.uncheckedSageCount} historical Sage invoice{stmt.uncheckedSageCount === 1 ? "" : "s"} had no payment recorded in Sage after Feb 2022.</strong>
+              <p>
+                {onlyApp
+                  ? "Currently showing only verified Plutus transactions (excluding unverified pre-cutover Sage invoices)."
+                  : "Unverified Sage invoices are currently included in the opening/closing balance. Toggle below to exclude pre-Plutus Sage history before emailing."}
+              </p>
+              <div className="toolbar" style={{ marginTop: 8 }}>
+                <button className={`btn small ${onlyApp ? "primary" : "ghost"}`} onClick={() => setOnlyApp(true)}>
+                  Plutus only (verified)
+                </button>
+                <button className={`btn small ${!onlyApp ? "primary" : "ghost"}`} onClick={() => setOnlyApp(false)}>
+                  All history (incl. Sage)
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Date Filter Bar */}
         <section className="glass panel" style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", padding: "12px 16px" }}>
             <span style={{ fontSize: 13, fontWeight: 550, color: "var(--text-2)" }}>Period:</span>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {(["month", "30", "60", "90", "ytd", "all"] as const).map((p) => {
                 const labels: Record<string, string> = {
                   month: "This Month",
@@ -157,13 +182,13 @@ export default function CustomerStatement({ id }: { id: number }) {
                 );
               })}
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: "auto", flexWrap: "wrap" }}>
               <label style={{ fontSize: 12, color: "var(--text-3)" }}>
                 From:
                 <input
                   type="date"
                   className="input"
-                  style={{ marginLeft: 6, padding: "4px 8px", fontSize: 12 }}
+                  style={{ marginLeft: 6, padding: "4px 8px", fontSize: 12, width: "auto" }}
                   value={fromDate}
                   onChange={(e) => { setFromDate(e.target.value); setPreset("custom" as any); }}
                 />
@@ -173,7 +198,7 @@ export default function CustomerStatement({ id }: { id: number }) {
                 <input
                   type="date"
                   className="input"
-                  style={{ marginLeft: 6, padding: "4px 8px", fontSize: 12 }}
+                  style={{ marginLeft: 6, padding: "4px 8px", fontSize: 12, width: "auto" }}
                   value={toDate}
                   onChange={(e) => { setToDate(e.target.value); setPreset("custom" as any); }}
                 />
@@ -311,23 +336,23 @@ export default function CustomerStatement({ id }: { id: number }) {
 
           {/* Banking Details Box */}
           <div className="p-bank">
-            <div className="p-bank-head">Banking & Remittance Details</div>
+            <div className="p-bank-head">Banking &amp; Remittance Details</div>
             <div className="p-bank-grid">
-              <div><span className="p-bank-lbl">Bank:</span> First National Bank (FNB)</div>
-              <div><span className="p-bank-lbl">Account Name:</span> {co.displayName}</div>
-              <div><span className="p-bank-lbl">Account Number:</span> 62932184469</div>
-              <div><span className="p-bank-lbl">Account Type:</span> Current / Cheque Account</div>
-              <div><span className="p-bank-lbl">Branch Code:</span> 250 655 (Menlyn Maine)</div>
-              <div><span className="p-bank-lbl">Payment Ref:</span> {cust.name}</div>
+              <div><span className="p-bank-lbl">Bank:</span> <strong>{bank.bank}</strong></div>
+              <div><span className="p-bank-lbl">Account Name:</span> <strong>{bank.accountName}</strong></div>
+              <div><span className="p-bank-lbl">Account Number:</span> <strong className="num">{bank.accountNumber}</strong></div>
+              <div><span className="p-bank-lbl">Account Type:</span> <strong>{bank.accountType}</strong></div>
+              <div><span className="p-bank-lbl">Branch Code:</span> <strong className="num">{bank.branchCode}</strong></div>
+              <div><span className="p-bank-lbl">Payment Ref:</span> <strong>{cust.name}</strong></div>
             </div>
-            <div className="p-bank-foot">Please email proof of payment to accounts@logia.co.za</div>
+            <div className="p-bank-foot">Please email proof of payment to <strong>{bank.proofEmail}</strong></div>
           </div>
         </article>
       </div>
 
       {/* Email Modal */}
       {showEmail && (
-        <div className="modal-backdrop" onClick={() => !sending && setShowEmail(false)}>
+        <div className="modal-backdrop no-print" onClick={() => !sending && setShowEmail(false)}>
           <div className="modal glass" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
             <div className="modal-head">
               <h2>Email Statement of Account</h2>

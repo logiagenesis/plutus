@@ -66,7 +66,9 @@ function Combo<T>({ label, placeholder, value, items, getLabel, getSub, onPick, 
 }
 
 export default function Editor({ kind, editId }: { kind: Kind; editId?: number }) {
-  const fromId = routeQuery().get("from");
+  const q = routeQuery();
+  const fromId = q.get("from");
+  const initialCustomerId = q.get("customer") ? Number(q.get("customer")) : null;
   const [st, setSt] = useState<{ source: Doc | null; editing: Doc | null } | string | null>(null);
   useEffect(() => {
     let live = true;
@@ -80,14 +82,14 @@ export default function Editor({ kind, editId }: { kind: Kind; editId?: number }
   if (st === null) return <div className="page">{back}<div className="skel" style={{ width: 260, height: 34 }} /><div className="skel" style={{ height: 420, marginTop: 22 }} /></div>;
   if (typeof st === "string") return <div className="page">{back}<div className="notice"><I.alert /><div><strong>Couldn’t open that document</strong><p>{st}</p></div></div></div>;
   if (st.editing && st.editing.status !== "draft") return <div className="page">{back}<div className="notice"><I.alert /><div><strong>This document is issued</strong><p>Issued documents are locked. Use Copy to start a new one from it.</p></div></div></div>;
-  return <EditorForm kind={kind} source={st.source} editing={st.editing} />;
+  return <EditorForm kind={kind} source={st.source} editing={st.editing} initialCustomerId={initialCustomerId} />;
 }
 
-function EditorForm({ kind, source, editing }: { kind: Kind; source: Doc | null; editing: Doc | null }) {
+function EditorForm({ kind, source, editing, initialCustomerId }: { kind: Kind; source: Doc | null; editing: Doc | null; initialCustomerId?: number | null }) {
   const { reload, notify } = useApp();
   const today = todayISO();
   const init = editing ?? source;
-  const [customerId, setCustomerId] = useState<number | null>(init?.customerSageId ?? null);
+  const [customerId, setCustomerId] = useState<number | null>(init?.customerSageId ?? initialCustomerId ?? null);
   const [date, setDate] = useState(editing?.date ?? today);
   const [due, setDue] = useState(editing?.dueDate ?? endOfMonth(today));
   const [reference, setReference] = useState(init?.reference ?? "");
@@ -165,7 +167,7 @@ function EditorForm({ kind, source, editing }: { kind: Kind; source: Doc | null;
         <form className="glass editor-form" onSubmit={(e) => { e.preventDefault(); save(); }} ref={firstRef} noValidate>
           <div className="field">
             <span>Customer</span>
-            <Combo<Customer> label="Customer" placeholder="Start typing a customer name" value={customer?.name ?? ""} items={customers} autoFocus={!source}
+            <Combo<Customer> label="Customer" placeholder="Start typing a customer name" value={customer?.name ?? ""} items={customers} autoFocus={!source && !initialCustomerId}
               getLabel={(c) => c.name} getSub={(c) => c.contactName && c.contactName !== c.name ? c.contactName : ""}
               onPick={(c) => setCustomerId(c.sageId)} onText={() => setCustomerId(null)} />
             {tried && !customer && <span style={{ color: "var(--bad)", fontSize: 12.5 }}>Choose a customer from the list.</span>}
@@ -229,7 +231,6 @@ function EditorForm({ kind, source, editing }: { kind: Kind; source: Doc | null;
             <span className="muted" style={{ fontSize: 13 }} role="status">{saveErr ? <span className="err">{saveErr}</span> : ready ? `Ready · ${rand(totals.totalCents)} to ${customer!.name}` : tried ? "Fix the highlighted fields" : "Saved drafts can be edited until you issue them"}</span>
             <div className="toolbar">
               <button type="button" className="btn ghost opt" onClick={() => go(kind === "invoice" ? "/invoices" : "/quotes")}>Cancel</button>
-              <button type="button" className="btn opt" disabled title="Sending switches on once your email sender is set up">Email to customer</button>
               <button type="submit" className="btn primary" disabled={saving}><I.check />{saving ? "Saving…" : "Save draft"}</button>
             </div>
           </div>

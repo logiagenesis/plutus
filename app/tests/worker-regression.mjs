@@ -1,4 +1,6 @@
 import { readFileSync, mkdirSync, unlinkSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { webcrypto } from "node:crypto";
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
@@ -14,14 +16,16 @@ try {
 }
 const { default: worker } = await import(new URL("../.test-build/worker.mjs", import.meta.url));
 
+const PYTHON_BIN = spawnSync("python3", ["--version"]).status === 0 ? "python3" : "python";
+
 class DatabaseSyncPolyfill {
   constructor(id = Math.random().toString(36).slice(2)) {
-    this.dbFile = `/tmp/test_poly_${id}.db`;
+    this.dbFile = join(tmpdir(), `test_poly_${id}.db`);
     if (existsSync(this.dbFile)) unlinkSync(this.dbFile);
     this.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;");
   }
   _call(act, payload) {
-    const p = spawnSync("python3", ["-c", `
+    const p = spawnSync(PYTHON_BIN, ["-c", `
 import sqlite3, sys, json
 conn = sqlite3.connect(sys.argv[1], timeout=30.0)
 conn.row_factory = sqlite3.Row
@@ -112,8 +116,8 @@ async function session(db) {
   db.db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,1,?)").run(hash, "2099-01-01");
 }
 const envFor = (db, extra = {}) => ({ DB: db, ASSETS: { fetch: () => new Response("x") }, ...extra });
-async function call(env, path, method = "GET", body, auth = true) {
-  const r = await worker.fetch(new Request("https://test.invalid/api/" + path, { method, headers: { "content-type": "application/json", ...(auth ? { cookie: "plutus_session=" + token } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) }), env);
+async function call(env, path, method = "GET", body, auth = true, originHost = "test.invalid") {
+  const r = await worker.fetch(new Request(`https://${originHost}/api/` + path, { method, headers: { "content-type": "application/json", ...(auth ? { cookie: "plutus_session=" + token } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) }), env);
   return { status: r.status, body: await r.json() };
 }
 const doc = { companyId: "logia-services", kind: "invoice", customerId: 1, date: "2026-10-30", vat: false, lines: [{ description: "Service", quantity: "1", unitPriceExclCents: 100, discountPercent: "0" }] };
@@ -191,27 +195,35 @@ ok("list shows paid amount", boot.paid_cents === 10000 && boot.source === "app")
 r = await call(env, "documents/" + inv.id + "/payments/" + r.body.payments[1].id, "DELETE");
 ok("payment removed (kept, marked void)", r.status === 200 && r.body.payments.filter((p) => !p.voided_at).length === 1);
 
-// Piece 2: Outbound emailing
+// Piece 2: Outbound emailing (NF03)
 ok("emailing a draft is refused", (await call(env, "documents/" + (await call(env, "documents", "POST", doc)).body.id + "/send", "POST", { toEmail: "client@example.com" })).status === 400);
 ok("emailing requires valid recipient email", (await call(env, "documents/" + inv.id + "/send", "POST", { toEmail: "invalid-email" })).status === 400);
+ok("production email without RESEND_API_KEY returns 503 instead of faking sent", (await call(env, "documents/" + inv.id + "/send", "POST", { toEmail: "client@example.com" }, true, "plutus.logia.co.za")).status === 503);
 r = await call(env, "documents/" + inv.id + "/send", "POST", { toEmail: "client@example.com", ccEmail: "accounts@logia.co.za" });
-ok("email sent, recorded in history and document state updated", r.status === 200 && r.body.emails.length === 1 && r.body.sent_to === "client@example.com" && !!r.body.sent_at);
+ok("email sent in test harness, recorded in history and document state updated", r.status === 200 && r.body.emails.length === 1 && r.body.sent_to === "client@example.com" && !!r.body.sent_at);
 
-// Piece 3: Automated Recurring Batch
+// Piece 3: Automated Recurring Batch (NF01, NF02)
 db.db.exec("INSERT INTO recurring_templates (company_id, customer_id, frequency, start_date, active, exclusive_cents, tax_cents, total_cents) VALUES ('logia-services', 1, 'monthly', '2026-01-25', 1, 1000, 0, 1000)");
 const tmplId = db.db.prepare("SELECT last_insert_rowid() AS id").get().id;
 db.db.exec(`INSERT INTO recurring_lines (template_id, line_no, description, quantity, unit_price_excl_cents, exclusive_cents, tax_cents, total_cents) VALUES (${tmplId}, 1, 'Monthly Service', '1', 1000, 1000, 0, 1000)`);
 
+// Future template should not run before start_date (NF02)
+db.db.exec("INSERT INTO recurring_templates (company_id, customer_id, frequency, start_date, active, exclusive_cents, tax_cents, total_cents) VALUES ('logia-services', 1, 'monthly', '2027-06-25', 1, 5000, 0, 5000)");
+const futureTmplId = db.db.prepare("SELECT last_insert_rowid() AS id").get().id;
+db.db.exec(`INSERT INTO recurring_lines (template_id, line_no, description, quantity, unit_price_excl_cents, exclusive_cents, tax_cents, total_cents) VALUES (${futureTmplId}, 1, 'Future Service', '1', 5000, 5000, 0, 5000)`);
+
 let prev = await call(env, "recurring/preview?company=logia-services&date=2026-11-25");
-ok("recurring preview shows due template", prev.status === 200 && prev.body.dueCount === 1 && prev.body.projectedTotalCents === 1000);
+ok("recurring preview shows due template and excludes future start_date", prev.status === 200 && prev.body.dueCount === 1 && prev.body.projectedTotalCents === 1000);
 
 let recRun = await call(env, "recurring/run", "POST", { companyId: "logia-services", date: "2026-11-25" });
-ok("recurring run generates invoice", recRun.status === 200 && recRun.body.generatedCount === 1 && recRun.body.invoices.length === 1);
+ok("recurring run generates invoice atomically with lines", recRun.status === 200 && recRun.body.generatedCount === 1 && recRun.body.invoices.length === 1);
+const genDoc = (await call(env, "documents/" + recRun.body.invoices[0].id)).body;
+ok("recurring generated invoice has lines and snapshot", genDoc.lines.length === 1 && genDoc.total_cents === 1000);
 
 let recRunAgain = await call(env, "recurring/run", "POST", { companyId: "logia-services", date: "2026-11-25" });
 ok("re-running recurring batch in same month skips existing (0 duplicates)", recRunAgain.status === 200 && recRunAgain.body.generatedCount === 0 && recRunAgain.body.skippedCount === 1);
 
-// Piece 4: FNB Bank Statement CSV Reconciliation
+// Piece 4: FNB Bank Statement CSV Reconciliation (NF07, NF08, NF09)
 const issued = (await call(env, "documents/" + inv.id)).body;
 const sampleCsv = `Date,Amount,Balance,Description
 2026/10/25,60.00,10500.00,EFT PAYMENT ${issued.number} LOGIA
@@ -244,6 +256,13 @@ const tx2 = bankList.body.transactions.find((t) => t.description.includes("RENAM
 let matchOver = await call(env, "bank/match", "POST", { transactionId: tx2.id, documentId: inv.id });
 ok("matching already-paid invoice is refused", matchOver.status === 400);
 
+// NF07: Ignore and Restore ignored transaction
+const txFee = bankList.body.transactions.find((t) => t.description.includes("SERVICE FEES"));
+let ignRes = await call(env, "bank/ignore", "POST", { transactionId: txFee.id });
+ok("ignoring transaction sets status to ignored", ignRes.status === 200 && ignRes.body.status === "ignored");
+let restoreIgnRes = await call(env, "bank/unmatch", "POST", { transactionId: txFee.id });
+ok("restoring ignored transaction sets status back to unmatched", restoreIgnRes.status === 200 && restoreIgnRes.body.status === "unmatched");
+
 // Unmatch transaction restores open balance
 let unmatchRes = await call(env, "bank/unmatch", "POST", { transactionId: tx1.id });
 ok("unmatching transaction reverses payment and resets status", unmatchRes.status === 200 && unmatchRes.body.status === "unmatched");
@@ -252,13 +271,13 @@ let docAfterUnmatch = await call(env, "documents/" + inv.id);
 const totalPaidUnmatch = docAfterUnmatch.body.payments.filter((p) => !p.voided_at).reduce((a, p) => a + p.amount_cents, 0);
 ok("invoice open balance restored after unmatch", totalPaidUnmatch === 4000);
 
-// Piece 5: Customer Account Statement & Ledger
+// Piece 5: Customer Account Statement & Ledger (NF04)
 let stmtAll = await call(env, "customers/1/statement?from=2026-01-01&to=2026-12-31");
 ok("statement returns customer, company, lines and aging", stmtAll.status === 200 && stmtAll.body.lines.length >= 1 && "aging" in stmtAll.body);
 
 ok("statement closing balance matches final line running balance", stmtAll.body.closingBalanceCents === stmtAll.body.lines[stmtAll.body.lines.length - 1].balanceCents);
 
-ok("statement aging breakdown accounts for outstanding amounts", (stmtAll.body.aging.currentCents + stmtAll.body.aging.days30Cents + stmtAll.body.aging.days60Cents + stmtAll.body.aging.days90Cents) > 0);
+ok("statement aging breakdown sums to totalDueCents", (stmtAll.body.aging.currentCents + stmtAll.body.aging.days30Cents + stmtAll.body.aging.days60Cents + stmtAll.body.aging.days90Cents) === stmtAll.body.aging.totalDueCents);
 
 // Opening balance check: period starting after first invoice
 let stmtLate = await call(env, "customers/1/statement?from=2026-11-01&to=2026-12-31");
@@ -269,8 +288,6 @@ ok("emailing statement requires valid email", (await call(env, "customers/1/stat
 
 let emailStmt = await call(env, "customers/1/statement/send", "POST", { toEmail: "accounts@testcustomer.co.za", ccEmail: "accounts@logia.co.za" });
 ok("statement email sent and audited", emailStmt.status === 200 && emailStmt.body.ok === true && emailStmt.body.recipient === "accounts@testcustomer.co.za");
-
-
 
 // F08: clearing a password (reset) ends existing sessions
 db.db.prepare("UPDATE users SET password_hash=NULL WHERE id=1").run();

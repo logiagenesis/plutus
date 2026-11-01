@@ -23,7 +23,7 @@ export type Payment = { id: number; date: string; amountCents: number; method: s
 export type EmailMessage = { id: number; recipientEmail: string; ccEmail: string | null; subject: string; status: string; providerId: string | null; createdBy: string; createdAt: string };
 const mapEmail = (e: any): EmailMessage => ({ id: e.id, recipientEmail: e.recipient_email, ccEmail: e.cc_email, subject: e.subject, status: e.status, providerId: e.provider_id, createdBy: e.created_by, createdAt: e.created_at });
 export type Snapshot = { name: string; contact: string | null; email: string | null; vat: string | null; postal: string[] | null; delivery: string[] | null };
-export type CompanySnapshot = { id: string; displayName: string; registeredName: string | null; registrationNumber: string | null; vatNumber: string | null; email: string | null; telephone: string | null; address: string[] | null };
+export type CompanySnapshot = { id: string; displayName: string; registeredName: string | null; registrationNumber: string | null; vatNumber: string | null; email: string | null; telephone: string | null; address: string[] | null; defaultMessage?: string | null };
 const parseObj = <T,>(s: unknown): T | null => { if (typeof s !== "string" || !s) return null; try { return JSON.parse(s) as T; } catch { return null; } };
 const mapPayment = (p: any): Payment => ({ id: p.id, date: p.date, amountCents: p.amount_cents, method: p.method, reference: p.reference, note: p.note, createdBy: p.created_by, createdAt: p.created_at, voidedAt: p.voided_at });
 /** What is still owed on an issued invoice, from payments recorded in Plutus. */
@@ -36,6 +36,43 @@ export type Customer = {
 };
 export type Item = { sageId: number; code: string | null; description: string; category: string | null; unit: string | null; priceExclCents: number; active: boolean; version: number };
 export type Company = { id: string; displayName: string; registeredName?: string | null; registrationNumber?: string | null; vatNumber?: string | null; email?: string | null; telephone?: string | null; address?: string[] | null; setUp: boolean; defaultMessage?: string | null };
+
+export type BankDetails = {
+  bank: string;
+  accountName: string;
+  accountNumber: string;
+  accountType: string;
+  branchCode: string;
+  proofEmail: string;
+};
+
+/** Parses banking details from the company's default_message or document message without hardcoding account numbers in source. */
+export function parseBankDetails(co?: { displayName?: string; registeredName?: string | null; email?: string | null; defaultMessage?: string | null } | null, docMessage?: string | null): BankDetails {
+  const src = `${co?.defaultMessage ?? ""}\n${data.invoiceMessage ?? ""}\n${docMessage ?? ""}`;
+  const pick = (label: string, fallback: string) => {
+    const m = src.match(new RegExp(`^\\s*${label}\\s*:\\s*(.+)$`, "im"));
+    return m ? m[1].trim() : fallback;
+  };
+  return {
+    bank: pick("Bank", "First National Bank (FNB)"),
+    accountName: pick("Account Name", co?.registeredName || co?.displayName || "Logia Services (Pty) Ltd"),
+    accountNumber: pick("Account Number", "See invoice instructions"),
+    accountType: pick("Account Type", "Current / Cheque Account"),
+    branchCode: pick("Branch Code", "250 655 (Menlyn Maine)"),
+    proofEmail: pick("Proof of payment", co?.email || "accounts@logia.co.za"),
+  };
+}
+
+/** Removes duplicate 7-line banking instructions from a free-text invoice message when the structured .p-bank box is already rendered. */
+export function stripRedundantBankLines(msg?: string | null): string | null {
+  if (!msg) return null;
+  const cleaned = msg
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*(Bank|Account Name|Account Number|Account Type|Branch Code|Payment Reference|Proof of payment)\s*:/i.test(line))
+    .join("\n")
+    .trim();
+  return cleaned || null;
+}
 
 type Data = { companyId: string; companies: Company[]; customers: Customer[]; items: Item[]; recurring: Recurring[]; documents: Doc[]; invoiceMessage: string | null; sequences: { kind: string; prefix: string; width: number; next_value: number }[] };
 
@@ -165,6 +202,7 @@ export type BankTransaction = {
   balanceCents: number | null;
   status: "unmatched" | "matched" | "ignored";
   matchedDocumentId: number | null;
+  matchedDocumentNumber?: string | null;
   matchedAt: string | null;
   matchType: string | null;
   suggestion?: {
@@ -198,6 +236,7 @@ export type StatementLine = {
   balanceCents: number;
   documentId?: number;
   paymentId?: number;
+  source?: string;
 };
 
 export type StatementData = {
@@ -215,6 +254,8 @@ export type StatementData = {
   };
   fromDate: string;
   toDate: string;
+  onlyApp?: boolean;
+  uncheckedSageCount?: number;
   openingBalanceCents: number;
   closingBalanceCents: number;
   lines: StatementLine[];

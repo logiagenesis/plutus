@@ -4,10 +4,10 @@
 
 ### 1. Dedicated Banking & Payment Instructions (`app/src/pages/Paper.tsx`)
 * Added a structured **Banking & Payment Details** box to all invoices rendered in `Paper.tsx`.
-* Directly displays verified FNB Cheque Account details:
+* Dynamically displays verified FNB Cheque Account details from company settings (`default_message` / snapshot):
   * **Bank**: First National Bank (FNB)
   * **Account Name**: Logia Services (Pty) Ltd (`co.registeredName || co.displayName`)
-  * **Account Number**: `62932184469`
+  * **Account Number**: `[stored in company settings in D1]`
   * **Account Type**: Current / Cheque Account
   * **Branch Code**: `250 655` (Menlyn Maine)
   * **Payment Reference**: `p.number` (or `Draft` if unissued)

@@ -8,12 +8,19 @@ export function CustomerList() {
   const { rev } = useApp();
   const [q, setQ] = useState("");
   const stats = useMemo(() => {
-    const m = new Map<number, { count: number; last: string; recurring: number }>();
+    const m = new Map<number, { count: number; last: string; recurring: number; annual: number }>();
     for (const d of invoices) {
-      const s = m.get(d.customerSageId) ?? { count: 0, last: "", recurring: 0 };
+      const s = m.get(d.customerSageId) ?? { count: 0, last: "", recurring: 0, annual: 0 };
       s.count++; if (d.date > s.last) s.last = d.date; m.set(d.customerSageId, s);
     }
-    for (const r of data.recurring) if (r.active) { const s = m.get(r.customerSageId) ?? { count: 0, last: "", recurring: 0 }; s.recurring += r.totalCents; m.set(r.customerSageId, s); }
+    for (const r of data.recurring) {
+      if (r.active) {
+        const s = m.get(r.customerSageId) ?? { count: 0, last: "", recurring: 0, annual: 0 };
+        if (r.frequency === "annually") s.annual += r.totalCents;
+        else s.recurring += r.totalCents;
+        m.set(r.customerSageId, s);
+      }
+    }
     return m;
   }, [rev]);
   const rows = data.customers
@@ -42,7 +49,10 @@ export function CustomerList() {
                       <td><div className="strong">{c.name}</div><div className="cell-sub">{c.category ?? ""}</div></td>
                       <td className="hide-sm"><div>{c.contactName ?? "—"}</div><div className="cell-sub">{c.email ?? "No email"}</div></td>
                       <td className="hide-xs muted">{s?.last ? fmtDate(s.last) : "Never"}</td>
-                      <td className="r num hide-xs">{s?.recurring ? rand(s.recurring) : <span className="faint">—</span>}</td>
+                      <td className="r num hide-xs">
+                        {s?.recurring ? <div>{rand(s.recurring)}</div> : (!s?.annual ? <span className="faint">—</span> : null)}
+                        {s?.annual ? <div className="cell-sub">{rand(s.annual)} / yr</div> : null}
+                      </td>
                       <td className="r num">{s?.count ?? 0}</td>
                     </tr>
                   );
@@ -64,6 +74,7 @@ export function CustomerView({ id }: { id: number }) {
   const quo = quotes.filter((d) => d.customerSageId === id);
   const rec = data.recurring.filter((r) => r.customerSageId === id);
   const total = inv.reduce((a, d) => a + d.totalCents, 0);
+  const lastIssued = inv.find((d) => d.status === "issued");
   return (
     <div className="page">
       <a className="crumb" href="#/customers"><I.back />Customers</a>
@@ -71,9 +82,10 @@ export function CustomerView({ id }: { id: number }) {
         <div><h1>{c.name}</h1><p className="sub">{c.category ?? "No category"} · {inv.length} invoices · {rand(total)} invoiced in total</p></div>
         <div className="toolbar">
           <a className="btn" href={`#/customers/${c.sageId}/statement`}><I.print />Statement</a>
-          <a className="btn" href={`#/quotes/new`}>New quote</a>
+          <a className="btn" href={`#/quotes/new?customer=${c.sageId}`}>New quote</a>
           <a className="btn" href={`#/customers/${c.sageId}/edit`}>Edit</a>
-          <a className="btn primary" href={inv.find((d) => d.status === "issued") ? `#/invoices/new?from=${inv.find((d) => d.status === "issued")!.sageId}` : "#/invoices/new"}><I.plus />New invoice</a>
+          {lastIssued && <a className="btn" href={`#/invoices/new?from=${lastIssued.sageId}`} title={`Copy lines from ${lastIssued.number}`}><I.copy />Copy last</a>}
+          <a className="btn primary" href={`#/invoices/new?customer=${c.sageId}`}><I.plus />New invoice</a>
         </div>
       </div>
       <div className="detail">
