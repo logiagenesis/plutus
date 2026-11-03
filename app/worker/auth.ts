@@ -9,6 +9,10 @@ export type Env = {
   RESTORE_ENABLED?: string;    // "1" only while moving Plutus to a new account (restore into a blank database)
   RESTORE_CODE?: string;       // Cloudflare secret, set by the owner only for the restore; restore is off without it
   RESEND_API_KEY?: string;     // Transactional email API key (e.g. from Resend or Postmark)
+  SMTP_USER?: string;          // Google Workspace mailbox, e.g. accounts@logia.co.za
+  SMTP_PASS?: string;          // Google app password (secret)
+  SMTP_HOST?: string;          // default smtp.gmail.com
+  SMTP_PORT?: string;          // default 465
   EMAIL_FROM?: string;         // Default sender address (defaults to accounts@logia.co.za)
 };
 

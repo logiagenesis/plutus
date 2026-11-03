@@ -3,6 +3,7 @@ import { AuthError, type Env } from "./auth";
 import { handleBackup, handleRestore } from "./backup";
 import { handleAuth, requireSession } from "./login";
 import { ensureSchema } from "./schema";
+import { deliver, mailMode, NOT_CONFIGURED } from "./mail";
 
 // ───────── helpers ─────────
 class HttpError extends Error { constructor(public status: number, msg: string) { super(msg); } }
@@ -525,7 +526,7 @@ function renderStatementHtml(data: any, bankInfo: ReturnType<typeof extractBankB
 </html>`;
 }
 
-type SendIn = { toEmail?: string; ccEmail?: string | null; subject?: string; message?: string };
+type SendIn = { toEmail?: string; ccEmail?: string | null; subject?: string; message?: string; pdfBase64?: string };
 
 async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, reqUrl?: URL) {
   const d = await env.DB.prepare(`SELECT d.id, d.company_id, d.kind, d.number, d.status, d.date, d.due_date, d.reference, d.exclusive_cents, d.tax_cents, d.total_cents, d.from_number,
@@ -585,42 +586,16 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, r
   const status = "sent";
 
   const isTestHarness = reqUrl?.hostname === "test.invalid";
-  if (!env.RESEND_API_KEY && !isTestHarness) {
-    throw new HttpError(503, "Email delivery is not configured yet (RESEND_API_KEY secret is not set on the Cloudflare Worker).");
-  }
+  if (mailMode(env) === "none" && !isTestHarness) throw new HttpError(503, NOT_CONFIGURED);
 
-  if (env.RESEND_API_KEY) {
+  if (mailMode(env) !== "none") {
     try {
-      const fromEmail = env.EMAIL_FROM || "accounts@logia.co.za";
-      const fromHeader = `${d.company_name} <${fromEmail}>`;
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: fromHeader,
-          to: [to],
-          ...(cc ? { cc: [cc] } : {}),
-          reply_to: d.company_email || "accounts@logia.co.za",
-          subject,
-          text: bodyText,
-          html: htmlDoc,
-          attachments: [
-            {
-              filename: `${d.number}.html`,
-              content: toBase64Utf8(htmlDoc),
-            },
-          ],
-        }),
+      const pdf = typeof s.pdfBase64 === "string" && s.pdfBase64.length > 200 && s.pdfBase64.length < 6_000_000 ? s.pdfBase64 : null;
+      providerId = await deliver(env, {
+        fromName: d.company_name, fromEmail: "", replyTo: d.company_email || "accounts@logia.co.za",
+        to, cc, subject, text: bodyText, html: htmlDoc,
+        attachments: pdf ? [{ filename: `${d.number}.pdf`, contentBase64: pdf, mimeType: "application/pdf" }] : [{ filename: `${d.number}.html`, contentBase64: toBase64Utf8(htmlDoc), mimeType: "text/html" }],
       });
-      if (!res.ok) {
-        const errJson = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(errJson.message || res.statusText || `HTTP ${res.status}`);
-      }
-      const data = await res.json() as { id?: string };
-      providerId = data?.id ?? null;
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
       await env.DB.batch([
@@ -629,7 +604,7 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, r
         env.DB.prepare(`INSERT INTO audit_events (actor, action, entity, entity_id, detail_json)
           VALUES (?, 'email_failed', 'document', ?, ?)`).bind(actor, docId, JSON.stringify({ to, cc, subject, error: errMsg })),
       ]);
-      throw new HttpError(502, `Could not send email via Resend: ${errMsg}`);
+      throw new HttpError(502, `Could not send the email: ${errMsg}`);
     }
   }
 
@@ -1796,43 +1771,17 @@ ${co.telephone || ""}
   let status = "sent";
 
   const isTestHarness = reqUrl?.hostname === "test.invalid";
-  if (!env.RESEND_API_KEY && !isTestHarness) {
-    throw new HttpError(503, "Email delivery is not configured yet (RESEND_API_KEY secret is not set on the Cloudflare Worker).");
-  }
+  if (mailMode(env) === "none" && !isTestHarness) throw new HttpError(503, NOT_CONFIGURED);
 
-  if (env.RESEND_API_KEY) {
+  if (mailMode(env) !== "none") {
     try {
-      const fromAddr = env.EMAIL_FROM || "accounts@logia.co.za";
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: `${co.displayName} <${fromAddr}>`,
-          to: [to],
-          cc: cc ? [cc] : undefined,
-          reply_to: co.email || "accounts@logia.co.za",
-          subject,
-          text: bodyText,
-          html: htmlStmt,
-          attachments: [
-            {
-              filename: `Statement_${safeCustSlug}_${data.toDate}.html`,
-              content: toBase64Utf8(htmlStmt),
-            },
-          ],
-        }),
+      providerId = await deliver(env, {
+        fromName: co.displayName, fromEmail: "", replyTo: co.email || "accounts@logia.co.za",
+        to, cc, subject, text: bodyText, html: htmlStmt,
+        attachments: [{ filename: `Statement_${safeCustSlug}_${data.toDate}.html`, contentBase64: toBase64Utf8(htmlStmt), mimeType: "text/html" }],
       });
-      if (!res.ok) {
-        const errJson = (await res.json().catch(() => ({}))) as { message?: string };
-        throw new Error(`Email provider error: ${errJson.message || res.statusText}`);
-      }
-      const resData = await res.json() as any;
-      providerId = resData?.id ?? null;
     } catch (e) {
-      console.error("Resend API failed:", e);
+      console.error("Email failed:", e);
       status = "failed";
       throw new HttpError(502, `Failed to send email: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -1935,33 +1884,17 @@ async function sendTestEmail(env: Env, actor: string, input: { companyId?: strin
   if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw bad("Enter a valid email address for the test email");
 
   const isTestHarness = reqUrl?.hostname === "test.invalid";
-  if (!env.RESEND_API_KEY && !isTestHarness) {
-    throw new HttpError(503, "RESEND_API_KEY is not configured on this Cloudflare Worker yet. Run `wrangler secret put RESEND_API_KEY` to enable live outbound email.");
-  }
+  if (mailMode(env) === "none" && !isTestHarness) throw new HttpError(503, NOT_CONFIGURED);
 
   let providerId: string | null = "test-simulated";
-  if (env.RESEND_API_KEY) {
-    const fromAddr = env.EMAIL_FROM || "accounts@logia.co.za";
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: `${companyName} <${fromAddr}>`,
-        to: [to],
-        reply_to: co?.email || "accounts@logia.co.za",
-        subject: `Plutus Outbound Email Verification — ${companyName}`,
-        text: `This is a live test email from Plutus (${companyName}) triggered by ${actor} on ${todaySAST()}.\n\nYour Resend integration and sender domain are working properly.`,
-      }),
-    });
-    if (!res.ok) {
-      const errJson = (await res.json().catch(() => ({}))) as { message?: string };
-      throw new HttpError(502, `Resend test failed: ${errJson.message || res.statusText}`);
-    }
-    const resData = await res.json() as { id?: string };
-    providerId = resData?.id ?? null;
+  if (mailMode(env) !== "none") {
+    try {
+      providerId = await deliver(env, {
+        fromName: companyName, fromEmail: "", replyTo: co?.email || "accounts@logia.co.za", to,
+        subject: `Plutus email test - ${companyName}`,
+        text: `This is a live test email from Plutus (${companyName}) triggered by ${actor} on ${todaySAST()}.\n\nEmail sending is working.`,
+      });
+    } catch (e) { throw new HttpError(502, `Test email failed: ${e instanceof Error ? e.message : String(e)}`); }
   }
 
   await audit(env, actor, "test_email_sent", "company", null, { companyId, to, providerId }).run();

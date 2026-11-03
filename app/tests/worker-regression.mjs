@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 mkdirSync(".test-build", { recursive: true });
 try {
   const { build } = await import("esbuild");
-  await build({ entryPoints: ["worker/index.ts"], bundle: true, platform: "neutral", format: "esm", outfile: ".test-build/worker.mjs", logLevel: "error" });
+  await build({ entryPoints: ["worker/index.ts"], bundle: true, platform: "neutral", format: "esm", outfile: ".test-build/worker.mjs", logLevel: "error", external: ["cloudflare:sockets", "node:*", "worker-mailer"] });
 } catch {
   const { execSync } = await import("node:child_process");
   execSync("NODE_PATH=/usr/share/nodejs node tests/build-worker.cjs", { stdio: "inherit" });

@@ -367,6 +367,16 @@ function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose:
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  async function makePdf(): Promise<string | undefined> {
+    try {
+      const { buildDocumentPdf } = await import("../pdf");
+      const { doc } = await buildDocumentPdf({ kind, number: d.number, date: d.date, dueDate: d.dueDate, reference: d.reference, fromDocument: d.fromDocument, customerSageId: d.customerSageId, customerName: d.customerSnapshot?.name ?? c?.name, lines: d.lines, exclusiveCents: d.exclusiveCents, taxCents: d.taxCents, totalCents: d.totalCents, discountCents: d.discountCents, message: d.message ?? (kind === "invoice" ? data.invoiceMessage : null), draft: false, customerSnapshot: d.customerSnapshot, companySnapshot: d.companySnapshot });
+      const buf = new Uint8Array(doc.output("arraybuffer") as ArrayBuffer);
+      let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      return btoa(bin);
+    } catch { return undefined; }
+  }
+
   async function send(e: React.FormEvent) {
     e.preventDefault();
     if (!toEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail.trim())) {
@@ -378,7 +388,7 @@ function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose:
     try {
       const res = await api<any>(`documents/${d.sageId}/send`, {
         method: "POST",
-        body: { toEmail: toEmail.trim(), ccEmail: ccEmail.trim() || null, subject, message },
+        body: { toEmail: toEmail.trim(), ccEmail: ccEmail.trim() || null, subject, message, pdfBase64: await makePdf() },
       });
       const nd = mapDoc(res);
       notify(`${label} ${d.number} sent to ${toEmail.trim()}`);
@@ -395,7 +405,7 @@ function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose:
       <I.mail />
       <div style={{ flex: 1 }}>
         <strong id="em-h">Email {label} {d.number} to Customer</strong>
-        <p className="muted" style={{ marginTop: 2 }}>Sends formatted HTML email + printable attachment from {co.email ?? "accounts@logia.co.za"} with delivery logged in history.</p>
+        <p className="muted" style={{ marginTop: 2 }}>Sends the email with the invoice attached as a PDF, from {co.email ?? "accounts@logia.co.za"} with delivery logged in history.</p>
         <form className="stack" onSubmit={send} style={{ marginTop: 14 }}>
           <div className="form-row">
             <label className="field"><span>Recipient Email</span><input className="input" type="email" required value={toEmail} onChange={(e) => setToEmail(e.target.value)} placeholder="customer@example.com" /></label>
