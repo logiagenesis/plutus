@@ -2,7 +2,7 @@ import { data, customersById, fmtDate, parseBankDetails, stripRedundantBankLines
 import { rand } from "../money";
 
 export type PaperLine = { description: string; comments?: string | null; quantity: string; unitPriceExclCents: number; discountPercent: string; taxRate: string; exclusiveCents: number; taxCents: number; totalCents: number };
-type Props = {
+export type PaperProps = {
   kind: "invoice" | "quote" | "credit_note"; number: string; date: string; dueDate?: string | null; reference?: string | null;
   fromDocument?: string | null;
   customerSageId: number | null; customerName?: string; lines: PaperLine[];
@@ -13,7 +13,7 @@ type Props = {
 
 const q = (s: string) => (Number(s) % 1 === 0 ? String(Number(s)) : s);
 
-export default function Paper(p: Props) {
+export default function Paper(p: PaperProps) {
   const live = data.companies.find((c) => c.id === data.companyId) ?? data.companies[0];
   const co = p.companySnapshot ?? live;
   const cur = p.customerSageId ? customersById.get(p.customerSageId) : undefined;

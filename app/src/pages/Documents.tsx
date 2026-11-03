@@ -118,6 +118,7 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
   const [busy, setBusy] = useState<"" | "issue" | "delete">("");
   const [confirm, setConfirm] = useState<"" | "issue" | "delete">("");
   const [emailing, setEmailing] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   useEffect(() => {
     let live = true;
     api<any>(`documents/${Number(id)}`).then((d) => live && setDoc(mapDoc(d))).catch((e) => live && (e.status === 404 ? setDoc("missing") : setLoadErr(e.message)));
@@ -151,6 +152,13 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
     catch (e) { setErr(e instanceof Error ? e.message : String(e)); setBusy(""); setConfirm(""); }
   }
 
+  async function downloadPdf() {
+    setPdfBusy(true); setErr("");
+    try { const { downloadDocumentPdf } = await import("../pdf"); await downloadDocumentPdf({ kind, number: isDraft ? "Draft" : d.number, date: d.date, dueDate: d.dueDate, reference: d.reference, fromDocument: d.fromDocument, customerSageId: d.customerSageId, customerName: displayCustomerName, lines: d.lines, exclusiveCents: d.exclusiveCents, taxCents: d.taxCents, totalCents: d.totalCents, discountCents: d.discountCents, message: d.message ?? (kind === "invoice" ? data.invoiceMessage : null), draft: isDraft, customerSnapshot: d.customerSnapshot, companySnapshot: d.companySnapshot }); notify("PDF downloaded"); }
+    catch (e) { setErr("Could not create the PDF: " + (e instanceof Error ? e.message : String(e))); }
+    finally { setPdfBusy(false); }
+  }
+
   return (
     <div className="page">
       {crumb}
@@ -161,7 +169,8 @@ export function DocView({ kind, id }: { kind: Kind; id: string }) {
         </div>
         <div className="toolbar">
           <Pill tone={st.tone}>{st.label}</Pill>
-          <button className="btn" type="button" onClick={() => window.print()} title="Print or Save as PDF"><I.print />Print / PDF</button>
+          <button className="btn primary" type="button" disabled={!!busy || pdfBusy} onClick={downloadPdf} title="Download this document as a PDF file"><I.print />{pdfBusy ? "Preparing PDF..." : "Download PDF"}</button>
+          <button className="btn" type="button" onClick={() => window.print()} title="Print"><I.print />Print</button>
           {isDraft ? (
             <>
               <a className="btn" href={`#/${base}/${d.sageId}/edit`}>Edit</a>
