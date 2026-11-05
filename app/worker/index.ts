@@ -1714,7 +1714,7 @@ async function getCustomerStatement(env: Env, customerId: number, url: URL) {
   });
 }
 
-async function sendCustomerStatement(env: Env, actor: string, customerId: number, body: { fromDate?: string; toDate?: string; toEmail?: string; ccEmail?: string; onlyApp?: boolean }, reqUrl?: URL) {
+async function sendCustomerStatement(env: Env, actor: string, customerId: number, body: { fromDate?: string; toDate?: string; toEmail?: string; ccEmail?: string; onlyApp?: boolean; pdfBase64?: string }, reqUrl?: URL) {
   const cust = await env.DB.prepare("SELECT * FROM customers WHERE id = ?").bind(customerId).first<any>();
   if (!cust) throw new HttpError(404, "Customer not found");
 
@@ -1778,7 +1778,9 @@ ${co.telephone || ""}
       providerId = await deliver(env, {
         fromName: co.displayName, fromEmail: "", replyTo: co.email || "accounts@logia.co.za",
         to, cc, subject, text: bodyText, html: htmlStmt,
-        attachments: [{ filename: `Statement_${safeCustSlug}_${data.toDate}.html`, contentBase64: toBase64Utf8(htmlStmt), mimeType: "text/html" }],
+        attachments: (typeof body?.pdfBase64 === "string" && body.pdfBase64.length > 200 && body.pdfBase64.length < 6_000_000)
+          ? [{ filename: `Statement_${safeCustSlug}_${data.toDate}.pdf`, contentBase64: body.pdfBase64, mimeType: "application/pdf" }]
+          : [{ filename: `Statement_${safeCustSlug}_${data.toDate}.html`, contentBase64: toBase64Utf8(htmlStmt), mimeType: "text/html" }],
       });
     } catch (e) {
       console.error("Email failed:", e);

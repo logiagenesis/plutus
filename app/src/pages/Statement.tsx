@@ -26,6 +26,7 @@ export default function CustomerStatement({ id }: { id: number }) {
   const [toEmail, setToEmail] = useState("");
   const [ccEmail, setCcEmail] = useState("accounts@logia.co.za");
   const [sending, setSending] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const applyPreset = (p: "30" | "60" | "90" | "month" | "ytd" | "all") => {
     setPreset(p);
@@ -72,13 +73,40 @@ export default function CustomerStatement({ id }: { id: number }) {
     loadStatement();
   }, [loadStatement]);
 
+  const handleDownloadPdf = async () => {
+    if (!stmt) return;
+    try {
+      setPdfBusy(true);
+      const { downloadStatementPdf } = await import("../pdf");
+      await downloadStatementPdf(stmt);
+      notify("Statement PDF downloaded.");
+    } catch (e) {
+      notify(e instanceof Error ? e.message : "Failed to generate statement PDF.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   const handleSendEmail = async () => {
     if (!toEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
       notify("Please provide a valid recipient email address.");
       return;
     }
+    if (!stmt) return;
     try {
       setSending(true);
+      let pdfBase64: string | undefined;
+      try {
+        const { buildStatementPdf } = await import("../pdf");
+        const { doc } = await buildStatementPdf(stmt);
+        const buf = new Uint8Array(doc.output("arraybuffer") as ArrayBuffer);
+        let bin = "";
+        for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+        pdfBase64 = btoa(bin);
+      } catch (err) {
+        console.warn("Could not compile client PDF for statement; server will fall back to HTML", err);
+      }
+
       await api(`customers/${id}/statement/send`, {
         method: "POST",
         body: {
@@ -87,6 +115,7 @@ export default function CustomerStatement({ id }: { id: number }) {
           onlyApp,
           toEmail: toEmail.trim(),
           ccEmail: ccEmail.trim() || undefined,
+          pdfBase64,
         },
       });
       notify("Statement emailed successfully.");
@@ -126,10 +155,13 @@ export default function CustomerStatement({ id }: { id: number }) {
             <p className="sub">{cust.name} · {fmtDate(stmt.fromDate)} to {fmtDate(stmt.toDate)}</p>
           </div>
           <div className="toolbar">
-            <button className="btn" onClick={() => window.print()}>
-              <I.print />Print / PDF
+            <button className="btn primary" onClick={handleDownloadPdf} disabled={pdfBusy} title="Download vector PDF statement">
+              <I.print />{pdfBusy ? "Preparing PDF..." : "Download PDF"}
             </button>
-            <button className="btn primary" onClick={() => setShowEmail(true)}>
+            <button className="btn" onClick={() => window.print()} title="Print statement">
+              <I.print />Print
+            </button>
+            <button className="btn" onClick={() => setShowEmail(true)}>
               <I.mail />Email Statement
             </button>
           </div>
@@ -360,7 +392,7 @@ export default function CustomerStatement({ id }: { id: number }) {
             </div>
             <div className="modal-body stack" style={{ gap: 14 }}>
               <p className="sub" style={{ margin: 0 }}>
-                Send this account statement directly to the customer with an itemized summary, aging analysis, and banking details.
+                Send this account statement directly to the customer as an attached PDF, with an itemized summary, aging analysis, and banking details.
               </p>
               <div>
                 <label className="field-lbl">Recipient Email</label>
