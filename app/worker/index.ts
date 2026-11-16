@@ -929,6 +929,16 @@ async function runRecurringBatch(env: Env, actor: string = "system:cron", compan
     }
   }
 
+  // Email every invoice created in this run, to every address on the customer (added 16 Nov 2026).
+  for (const inv of generatedInvoices) {
+    const row = await env.DB.prepare("SELECT c.email FROM documents d JOIN customers c ON c.id = d.customer_id WHERE d.id = ?").bind(inv.id).first<{ email: string | null }>();
+    const addresses = (row?.email ?? "").split(/[;,\s]+/).filter(Boolean);
+    for (const to of addresses) {
+      try { await sendDocument(env, actor, inv.id, { toEmail: to }, undefined); }
+      catch (e) { console.error(`Recurring email failed for ${inv.number} to ${to}:`, e); }
+    }
+  }
+
   await audit(env, actor, "recurring_batch_completed", "company", 0, {
     companyId, period, date, generatedCount: generatedInvoices.length, skippedCount, totalCents: totalGeneratedCents
   }).run();
