@@ -50,6 +50,9 @@ function fmtRands(cents: number): string {
   return `${neg ? "- " : ""}R ${whole}.${dec}`;
 }
 
+const MISSING_ACCOUNT_NUMBER = "Not sent: there is no bank account number. Go to Settings, and under \"Default invoice & banking details\" add a line like  Account Number: 1234567890  then save and send again.";
+const NO_PDF = "Not sent: the PDF could not be created, so nothing went to the customer. Refresh the page (Ctrl+Shift+R) and try again.";
+
 function extractBankBlock(defaultMessage?: string | null, companyName?: string | null, companyEmail?: string | null, reference?: string | null) {
   const msg = defaultMessage ?? "";
   const pick = (label: string, fallback: string) => {
@@ -58,7 +61,7 @@ function extractBankBlock(defaultMessage?: string | null, companyName?: string |
   };
   const bank = pick("Bank", "First National Bank (FNB)");
   const accountName = pick("Account Name", companyName || "Logia Services (Pty) Ltd");
-  const accountNumber = pick("Account Number", "As per invoice instructions");
+  const accountNumber = pick("Account Number", "");
   const accountType = pick("Account Type", "Current / Cheque Account");
   const branchCode = pick("Branch Code", "250 655");
   const proofEmail = pick("Proof of payment", companyEmail || "accounts@logia.co.za");
@@ -66,6 +69,7 @@ function extractBankBlock(defaultMessage?: string | null, companyName?: string |
     bank,
     accountName,
     accountNumber,
+    hasAccountNumber: /\d{6,}/.test(accountNumber.replace(/[\s-]/g, "")),
     accountType,
     branchCode,
     proofEmail,
@@ -529,7 +533,7 @@ function renderStatementHtml(data: any, bankInfo: ReturnType<typeof extractBankB
 type SendIn = { toEmail?: string; ccEmail?: string | null; subject?: string; message?: string; pdfBase64?: string };
 
 async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, reqUrl?: URL) {
-  const d = await env.DB.prepare(`SELECT d.id, d.company_id, d.kind, d.number, d.status, d.date, d.due_date, d.reference, d.exclusive_cents, d.tax_cents, d.total_cents, d.from_number,
+  const d = await env.DB.prepare(`SELECT d.id, d.company_id, d.kind, d.number, d.status, d.date, d.due_date, d.reference, d.exclusive_cents, d.tax_cents, d.total_cents, d.from_number, d.message,
       c.display_name AS company_name, c.registered_name AS company_registered_name, c.registration_number AS company_reg_no, c.vat_number AS company_vat,
       c.email AS company_email, c.telephone AS company_tel, c.address_json AS company_address_json, c.default_message AS company_default_message,
       cust.name AS customer_name, cust.contact_name AS customer_contact, cust.email AS customer_email, cust.vat_number AS customer_vat, cust.postal_address_json AS customer_address_json
@@ -537,7 +541,7 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, r
     JOIN companies c ON c.id = d.company_id
     JOIN customers cust ON cust.id = d.customer_id
     WHERE d.id = ?`).bind(docId).first<{
-      id: number; company_id: string; kind: string; number: string; status: string; date: string; due_date: string | null; reference: string | null; exclusive_cents: number; tax_cents: number; total_cents: number; from_number: string | null;
+      id: number; company_id: string; kind: string; number: string; status: string; date: string; due_date: string | null; reference: string | null; exclusive_cents: number; tax_cents: number; total_cents: number; from_number: string | null; message: string | null;
       company_name: string; company_registered_name: string | null; company_reg_no: string | null; company_vat: string | null;
       company_email: string | null; company_tel: string | null; company_address_json: string | null; company_default_message: string | null;
       customer_name: string; customer_contact: string | null; customer_email: string | null; customer_vat: string | null; customer_address_json: string | null;
@@ -558,7 +562,8 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, r
   const subject = str(s.subject || defSubject, 200) || defSubject;
 
   const totalStr = "R " + (d.total_cents / 100).toFixed(2);
-  const bankInfo = extractBankBlock(d.company_default_message, d.company_name, d.company_email, d.number);
+  const bankInfo = extractBankBlock([d.company_default_message, d.message].filter(Boolean).join("\n"), d.company_name, d.company_email, d.number);
+  if (d.kind === "invoice" && !bankInfo.hasAccountNumber) throw new HttpError(422, MISSING_ACCOUNT_NUMBER);
   const defaultBody = [
     `Dear ${d.customer_name},`,
     "",
@@ -591,10 +596,12 @@ async function sendDocument(env: Env, actor: string, docId: number, s: SendIn, r
   if (mailMode(env) !== "none") {
     try {
       const pdf = typeof s.pdfBase64 === "string" && s.pdfBase64.length > 200 && s.pdfBase64.length < 6_000_000 ? s.pdfBase64 : null;
+      // Never fall back to an .html attachment: the customer sees raw code. No PDF = nothing is sent.
+      if (!pdf) throw new HttpError(422, NO_PDF);
       providerId = await deliver(env, {
         fromName: d.company_name, fromEmail: "", replyTo: d.company_email || "accounts@logia.co.za",
         to, cc, subject, text: bodyText, html: htmlDoc,
-        attachments: pdf ? [{ filename: `${d.number}.pdf`, contentBase64: pdf, mimeType: "application/pdf" }] : [{ filename: `${d.number}.html`, contentBase64: toBase64Utf8(htmlDoc), mimeType: "text/html" }],
+        attachments: [{ filename: `${d.number}.pdf`, contentBase64: pdf, mimeType: "application/pdf" }],
       });
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : String(e);
@@ -1744,6 +1751,7 @@ async function sendCustomerStatement(env: Env, actor: string, customerId: number
   const co = data.company;
   const subject = `Statement of Account from ${co.displayName} (${data.fromDate} to ${data.toDate})`;
   const bankInfo = extractBankBlock(co.defaultMessage, co.displayName, co.email, data.customer.name);
+  if (!bankInfo.hasAccountNumber) throw new HttpError(422, MISSING_ACCOUNT_NUMBER);
   const ledgerLines = data.lines.map((l: any) =>
     `- ${l.date} | ${l.kind === "invoice" ? `Invoice ${l.number}` : l.kind === "credit_note" ? `Credit Note ${l.number}` : l.number} | ${l.debitCents > 0 ? `+R ${(l.debitCents / 100).toFixed(2)}` : `-R ${(l.creditCents / 100).toFixed(2)}`} | Bal: R ${(l.balanceCents / 100).toFixed(2)}`
   ).join("\n");
@@ -1784,13 +1792,13 @@ ${co.telephone || ""}
   if (mailMode(env) === "none" && !isTestHarness) throw new HttpError(503, NOT_CONFIGURED);
 
   if (mailMode(env) !== "none") {
+    const stmtPdf = typeof body?.pdfBase64 === "string" && body.pdfBase64.length > 200 && body.pdfBase64.length < 6_000_000 ? body.pdfBase64 : null;
+    if (!stmtPdf) throw new HttpError(422, NO_PDF);
     try {
       providerId = await deliver(env, {
         fromName: co.displayName, fromEmail: "", replyTo: co.email || "accounts@logia.co.za",
         to, cc, subject, text: bodyText, html: htmlStmt,
-        attachments: (typeof body?.pdfBase64 === "string" && body.pdfBase64.length > 200 && body.pdfBase64.length < 6_000_000)
-          ? [{ filename: `Statement_${safeCustSlug}_${data.toDate}.pdf`, contentBase64: body.pdfBase64, mimeType: "application/pdf" }]
-          : [{ filename: `Statement_${safeCustSlug}_${data.toDate}.html`, contentBase64: toBase64Utf8(htmlStmt), mimeType: "text/html" }],
+        attachments: [{ filename: `Statement_${safeCustSlug}_${data.toDate}.pdf`, contentBase64: stmtPdf, mimeType: "application/pdf" }],
       });
     } catch (e) {
       console.error("Email failed:", e);

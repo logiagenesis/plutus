@@ -95,16 +95,14 @@ export default function CustomerStatement({ id }: { id: number }) {
     if (!stmt) return;
     try {
       setSending(true);
-      let pdfBase64: string | undefined;
+      const { loadPdf, pdfToBase64 } = await import("../pdfLoader");
+      const { buildStatementPdf } = await loadPdf();
+      let pdfBase64: string;
       try {
-        const { buildStatementPdf } = await import("../pdf");
         const { doc } = await buildStatementPdf(stmt);
-        const buf = new Uint8Array(doc.output("arraybuffer") as ArrayBuffer);
-        let bin = "";
-        for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-        pdfBase64 = btoa(bin);
+        pdfBase64 = pdfToBase64(doc as any);
       } catch (err) {
-        console.warn("Could not compile client PDF for statement; server will fall back to HTML", err);
+        throw new Error("Not sent: the statement PDF could not be created. Details: " + (err instanceof Error ? err.message : String(err)));
       }
 
       await api(`customers/${id}/statement/send`, {

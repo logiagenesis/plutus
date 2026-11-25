@@ -58,7 +58,7 @@ export function parseBankDetails(co?: { displayName?: string; registeredName?: s
   return {
     bank: pick("Bank", "First National Bank (FNB)"),
     accountName: pick("Account Name", co?.registeredName || co?.displayName || "Logia Services (Pty) Ltd"),
-    accountNumber: pick("Account Number", "See invoice instructions"),
+    accountNumber: pick("Account Number", "NOT SET - add in Settings"),
     accountType: pick("Account Type", "Current / Cheque Account"),
     branchCode: pick("Branch Code", "250 655 (Menlyn Maine)"),
     proofEmail: pick("Proof of payment", co?.email || "accounts@logia.co.za"),

@@ -367,14 +367,15 @@ function EmailModal({ d, kind, onClose, onSent }: { d: Doc; kind: Kind; onClose:
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function makePdf(): Promise<string | undefined> {
+  async function makePdf(): Promise<string> {
+    const { loadPdf, pdfToBase64 } = await import("../pdfLoader");
+    const { buildDocumentPdf } = await loadPdf();
     try {
-      const { buildDocumentPdf } = await import("../pdf");
       const { doc } = await buildDocumentPdf({ kind, number: d.number, date: d.date, dueDate: d.dueDate, reference: d.reference, fromDocument: d.fromDocument, customerSageId: d.customerSageId, customerName: d.customerSnapshot?.name ?? c?.name, lines: d.lines, exclusiveCents: d.exclusiveCents, taxCents: d.taxCents, totalCents: d.totalCents, discountCents: d.discountCents, message: d.message ?? (kind === "invoice" ? data.invoiceMessage : null), draft: false, customerSnapshot: d.customerSnapshot, companySnapshot: d.companySnapshot });
-      const buf = new Uint8Array(doc.output("arraybuffer") as ArrayBuffer);
-      let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-      return btoa(bin);
-    } catch { return undefined; }
+      return pdfToBase64(doc as any);
+    } catch (e) {
+      throw new Error("Not sent: the PDF could not be created. Details: " + (e instanceof Error ? e.message : String(e)));
+    }
   }
 
   async function send(e: React.FormEvent) {
