@@ -60,11 +60,11 @@ function extractBankBlock(defaultMessage?: string | null, companyName?: string |
     return m ? m[1].trim() : fallback;
   };
   const bank = pick("Bank", "First National Bank (FNB)");
-  const accountName = pick("Account Name", companyName || "Logia Services (Pty) Ltd");
-  const accountNumber = pick("Account Number", "");
-  const accountType = pick("Account Type", "Current / Cheque Account");
-  const branchCode = pick("Branch Code", "250 655");
-  const proofEmail = pick("Proof of payment", companyEmail || "accounts@logia.co.za");
+  const accountName = pick("(?:Account|Acc\\.?)\\s*Name", companyName || "Logia Services (Pty) Ltd");
+  const accountNumber = pick("(?:Account|Acc\\.?)\\s*(?:Number|No\\.?|Nr\\.?|#)", "");
+  const accountType = pick("(?:Account|Acc\\.?)\\s*Type", "Current / Cheque Account");
+  const branchCode = pick("Branch\\s*Code", "250 655");
+  const proofEmail = pick("(?:Email\\s*)?Proof\\s*of\\s*payment(?:\\s*to)?", companyEmail || "accounts@logia.co.za");
   return {
     bank,
     accountName,

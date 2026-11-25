@@ -57,11 +57,11 @@ export function parseBankDetails(co?: { displayName?: string; registeredName?: s
   };
   return {
     bank: pick("Bank", "First National Bank (FNB)"),
-    accountName: pick("Account Name", co?.registeredName || co?.displayName || "Logia Services (Pty) Ltd"),
-    accountNumber: pick("Account Number", "NOT SET - add in Settings"),
-    accountType: pick("Account Type", "Current / Cheque Account"),
-    branchCode: pick("Branch Code", "250 655 (Menlyn Maine)"),
-    proofEmail: pick("Proof of payment", co?.email || "accounts@logia.co.za"),
+    accountName: pick("(?:Account|Acc\\.?)\\s*Name", co?.registeredName || co?.displayName || "Logia Services (Pty) Ltd"),
+    accountNumber: pick("(?:Account|Acc\\.?)\\s*(?:Number|No\\.?|Nr\\.?|#)", "NOT SET - add in Settings"),
+    accountType: pick("(?:Account|Acc\\.?)\\s*Type", "Current / Cheque Account"),
+    branchCode: pick("Branch\\s*Code", "250 655 (Menlyn Maine)"),
+    proofEmail: pick("(?:Email\\s*)?Proof\\s*of\\s*payment(?:\\s*to)?", co?.email || "accounts@logia.co.za"),
   };
 }
 
@@ -70,7 +70,7 @@ export function stripRedundantBankLines(msg?: string | null): string | null {
   if (!msg) return null;
   const cleaned = msg
     .split(/\r?\n/)
-    .filter((line) => !/^\s*(Bank|Account Name|Account Number|Account Type|Branch Code|Payment Reference|Proof of payment)\s*:/i.test(line))
+    .filter((line) => !/^\s*(Bank|Branch|(?:Account|Acc\.?)\s*(?:Name|Number|No\.?|Nr\.?|#|Type)|Branch\s*Code|Payment\s*Reference|(?:Email\s*)?Proof\s*of\s*payment(?:\s*to)?)\s*:/i.test(line))
     .join("\n")
     .trim();
   return cleaned || null;

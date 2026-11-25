@@ -197,7 +197,7 @@ ok("payment removed (kept, marked void)", r.status === 200 && r.body.payments.fi
 
 // Piece 2: Outbound emailing (NF03)
 ok("invoice email refused when no bank account number is set", (await call(env, "documents/" + inv.id + "/send", "POST", { toEmail: "client@example.com" })).status === 422);
-db.db.exec("UPDATE companies SET default_message = 'Bank: FNB\nAccount Number: 62000000000\nBranch Code: 250655' WHERE id = 'logia-services'");
+db.db.exec("UPDATE companies SET default_message = 'Bank: FNB Current Account\nAcc Name: Logia Services (Pty)\nAcc No: 62000000000\nBranch: Menlyn Maine\nBranch Code: 250 655' WHERE id = 'logia-services'");
 ok("emailing a draft is refused", (await call(env, "documents/" + (await call(env, "documents", "POST", doc)).body.id + "/send", "POST", { toEmail: "client@example.com" })).status === 400);
 ok("emailing requires valid recipient email", (await call(env, "documents/" + inv.id + "/send", "POST", { toEmail: "invalid-email" })).status === 400);
 ok("production email without RESEND_API_KEY returns 503 instead of faking sent", (await call(env, "documents/" + inv.id + "/send", "POST", { toEmail: "client@example.com" }, true, "plutus.logia.co.za")).status === 503);
